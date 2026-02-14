@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ClipboardList, BarChart3, LogOut, ShieldCheck, User } from 'lucide-react'
+import { ClipboardList, BarChart3, LogOut, ShieldCheck, User, AlertTriangle } from 'lucide-react'
 import { Toaster } from 'sonner'
 import { TransactionForm } from '@/components/transaction-form'
 import { TransactionList } from '@/components/transaction-list'
@@ -10,12 +10,66 @@ import { LoginScreen } from '@/components/login-screen'
 import { useCurrentUser } from '@/hooks/use-store'
 import { logout, initializeFromStorage } from '@/lib/store'
 
+/* ── Logout Confirmation Dialog ── */
+function LogoutDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+}) {
+  if (!open) return null
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={() => onOpenChange(false)}
+    >
+      <div 
+        className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-foreground">Keluar dari Aplikasi?</h3>
+            <p className="text-sm text-muted-foreground">
+              Anda akan keluar dari akun ini
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="h-11 flex-1 rounded-lg border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="h-11 flex-1 rounded-lg bg-destructive text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90"
+          >
+            Ya, Keluar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppShell() {
   const user = useCurrentUser()
   const [activeTab, setActiveTab] = useState<'transactions' | 'summary'>(
     'transactions',
   )
   const [isInitializing, setIsInitializing] = useState(true)
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
 
   // Initialize store from localStorage on mount (client-side only)
   useEffect(() => {
@@ -42,6 +96,15 @@ function AppShell() {
       mounted = false
     }
   }, [])
+
+  function handleLogoutClick() {
+    setLogoutDialogOpen(true)
+  }
+
+  function handleLogoutConfirm() {
+    logout()
+    setLogoutDialogOpen(false)
+  }
 
   // Show loading while initializing
   if (isInitializing) {
@@ -80,7 +143,7 @@ function AppShell() {
             </div>
             <button
               type="button"
-              onClick={logout}
+              onClick={handleLogoutClick}
               className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted active:bg-muted"
               aria-label="Keluar"
             >
@@ -134,6 +197,13 @@ function AppShell() {
       </main>
 
       <TransactionForm />
+
+      {/* Logout Confirmation Dialog */}
+      <LogoutDialog
+        open={logoutDialogOpen}
+        onOpenChange={setLogoutDialogOpen}
+        onConfirm={handleLogoutConfirm}
+      />
     </div>
   )
 }

@@ -145,8 +145,14 @@ function TogglePaymentDialog({
   const newStatus = !transaction.isPaid
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={() => onOpenChange(false)}
+    >
+      <div 
+        className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-start gap-3">
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
             newStatus ? 'bg-success/10' : 'bg-destructive/10'
@@ -208,8 +214,14 @@ function TransactionDetailDrawer({
   if (!open || !transaction) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-t-2xl bg-card p-6 animate-in slide-in-from-bottom">
+    <div 
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+      onClick={() => onOpenChange(false)}
+    >
+      <div 
+        className="w-full max-w-lg rounded-t-2xl bg-card p-6 animate-in slide-in-from-bottom"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-foreground">Detail Transaksi</h2>
@@ -312,8 +324,17 @@ function EditTransactionDrawer({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-t-2xl bg-card p-6 animate-in slide-in-from-bottom">
+    <div 
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+      onClick={() => {
+        onOpenChange(false)
+        resetForm()
+      }}
+    >
+      <div 
+        className="w-full max-w-lg rounded-t-2xl bg-card p-6 animate-in slide-in-from-bottom"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4">
           <h2 className="text-xl font-bold text-foreground">Edit Transaksi</h2>
           <p className="text-sm text-muted-foreground">Ubah data transaksi di bawah ini</p>
@@ -426,8 +447,14 @@ function DeleteDialog({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+      onClick={() => onOpenChange(false)}
+    >
+      <div 
+        className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
             <Trash2 className="h-5 w-5 text-destructive" />
