@@ -12,6 +12,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Catatan Transaksi',
   description: 'Aplikasi pencatatan transaksi dan pesanan',
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+  },
 }
 
 export const viewport: Viewport = {
