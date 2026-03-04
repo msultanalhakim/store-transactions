@@ -162,7 +162,7 @@ function mapRow(row: any): Transaction {
   return {
     id: row.id,
     date: row.date,
-    customerName: row.order_name,
+    customerName: row.customer_name,
     orderItems: items,
     price,
     isPaid,
@@ -213,7 +213,7 @@ export async function addTransaction(input: AddTransactionInput): Promise<Transa
     .from('transactions')
     .insert({
       date: input.date,
-      order_name: input.customerName.trim(),
+      customer_name: input.customerName.trim(),
       order_items: validItems,
       price: totalPrice,
       is_paid: input.isPaid,
@@ -246,7 +246,7 @@ export interface EditTransactionInput {
 export async function editTransaction(id: string, data: EditTransactionInput): Promise<boolean> {
   const updateData: Record<string, unknown> = {}
   if (data.date !== undefined) updateData.date = data.date
-  if (data.customerName !== undefined) updateData.order_name = data.customerName.trim()
+  if (data.customerName !== undefined) updateData.customer_name = data.customerName.trim()
   if (data.orderItems !== undefined) {
     const validItems = data.orderItems.filter((i) => i.qty > 0 && i.price > 0)
     updateData.order_items = validItems

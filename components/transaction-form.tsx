@@ -7,7 +7,7 @@ import {
   Drawer, DrawerClose, DrawerContent, DrawerFooter,
   DrawerHeader, DrawerTitle, DrawerDescription,
 } from '@/components/ui/drawer'
-import { addTransaction, formatRupiah, isAdmin, type OrderItem } from '@/lib/store'
+import { addTransaction, formatRupiah, isAdmin, getTransactions, type OrderItem } from '@/lib/store'
 import { getDailyMenu, subscribeDailyMenu, type DailyMenuItem } from '@/app/page'
 import { toast } from 'sonner'
 
@@ -85,6 +85,13 @@ export function TransactionForm() {
   const [isPaid, setIsPaid] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inputMode, setInputMode] = useState<InputMode>('auto')
+
+  // Autocomplete state
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const allCustomerNames = Array.from(new Set(getTransactions().map((t) => t.customerName))).sort()
+  const filteredSuggestions = customerName.trim()
+    ? allCustomerNames.filter((n) => n.toLowerCase().includes(customerName.toLowerCase()) && n.toLowerCase() !== customerName.toLowerCase()).slice(0, 5)
+    : allCustomerNames.slice(0, 5)
 
   // Mode manual state
   const [manualItems, setManualItems] = useState<OrderItem[]>([])
@@ -198,15 +205,32 @@ export function TransactionForm() {
             </div>
 
             {/* Nama Pemesan */}
-            <div>
+            <div className="relative">
               <label className="mb-2 flex items-center gap-2 text-base font-extrabold text-slate-800 dark:text-slate-200">
                 <UserRound className="h-5 w-5 text-orange-500" />
                 Nama Pemesan
               </label>
               <input type="text" placeholder="Contoh: Bu Siti, Pak Budi..."
-                value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                value={customerName}
+                onChange={(e) => { setCustomerName(e.target.value); setShowSuggestions(true) }}
+                onFocus={() => setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 disabled={isSubmitting}
+                autoComplete="off"
                 className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-lg text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-orange-500 focus:outline-none disabled:opacity-50" />
+              {showSuggestions && filteredSuggestions.length > 0 && (
+                <ul className="absolute z-50 top-full mt-1 w-full rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden">
+                  {filteredSuggestions.map((name) => (
+                    <li key={name}>
+                      <button type="button"
+                        onMouseDown={() => { setCustomerName(name); setShowSuggestions(false) }}
+                        className="w-full px-4 py-3 text-left text-base font-semibold text-slate-800 dark:text-slate-200 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 transition-colors truncate">
+                        {name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* ── Mode Toggle ── */}
