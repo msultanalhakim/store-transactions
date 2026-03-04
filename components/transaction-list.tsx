@@ -541,6 +541,7 @@ export function TransactionList() {
   const { year: currentYear, month: currentMonth } = getCurrentYearMonth()
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
 
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
@@ -559,13 +560,30 @@ export function TransactionList() {
     ? selectedMonth
     : availableMonths[availableMonths.length - 1] ?? selectedMonth
 
-  const filtered = useMemo(() => {
+  // Get available days in the selected month
+  const availableDays = useMemo(() => {
     const key = `${selectedYear}-${effectiveMonth}`
-    return [...transactions.filter((t) => t.date.startsWith(key))].sort((a, b) => {
+    const days = [...new Set(transactions.filter((t) => t.date.startsWith(key)).map((t) => t.date.split('-')[2]))]
+    return days.sort((a, b) => parseInt(a) - parseInt(b))
+  }, [transactions, selectedYear, effectiveMonth])
+
+  // Auto-select latest day, reset when month changes
+  const effectiveDay = selectedDay && availableDays.includes(selectedDay) ? selectedDay : (availableDays[availableDays.length - 1] ?? null)
+
+  const filtered = useMemo(() => {
+    if (!effectiveDay) {
+      const key = `${selectedYear}-${effectiveMonth}`
+      return [...transactions.filter((t) => t.date.startsWith(key))].sort((a, b) => {
+        const diff = new Date(a.date).getTime() - new Date(b.date).getTime()
+        return sortOrder === 'newest' ? -diff : diff
+      })
+    }
+    const key = `${selectedYear}-${effectiveMonth}-${effectiveDay}`
+    return [...transactions.filter((t) => t.date === key)].sort((a, b) => {
       const diff = new Date(a.date).getTime() - new Date(b.date).getTime()
       return sortOrder === 'newest' ? -diff : diff
     })
-  }, [transactions, selectedYear, effectiveMonth, sortOrder])
+  }, [transactions, selectedYear, effectiveMonth, effectiveDay, sortOrder])
 
   const totalBilled = filtered.reduce((s, t) => s + t.price, 0)
   const totalPaid   = filtered.reduce((s, t) => s + t.paidAmount, 0)
@@ -603,12 +621,37 @@ export function TransactionList() {
         onMonthChange={(m) => setSelectedMonth(m)}
       />
 
+      {/* ── Day selector ── */}
+      {availableDays.length > 0 && (
+        <div className="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3">
+          <p className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+            Tanggal
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {availableDays.map((day) => (
+              <button
+                key={day}
+                type="button"
+                onClick={() => setSelectedDay(day === effectiveDay ? null : day)}
+                className={`flex-shrink-0 h-12 w-12 rounded-xl text-base font-extrabold transition-all ${
+                  day === effectiveDay
+                    ? 'bg-orange-500 text-white shadow'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-orange-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                {parseInt(day)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Summary strip ── */}
       <div className="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-              {formatMonthLabel(effectiveMonth)} {selectedYear}
+              {effectiveDay ? `${parseInt(effectiveDay)} ${formatMonthLabel(effectiveMonth)} ${selectedYear}` : `${formatMonthLabel(effectiveMonth)} ${selectedYear}`}
             </p>
             <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1 tabular-nums">
               {formatRupiah(totalBilled)}

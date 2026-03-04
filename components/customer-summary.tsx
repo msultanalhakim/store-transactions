@@ -483,9 +483,7 @@ export function CustomerSummary() {
         </div>
       )}
 
-      {allLunas.length > 0 && withPiutang.length > 0 && (
-        <CustomerTable title={`Sudah Lunas (${allLunas.length})`} customers={allLunas} variant="lunas" onCustomerClick={handleCustomerClick} />
-      )}
+
 
       <CustomerDetailDrawer
         customer={selectedCustomerRefreshed}
