@@ -199,9 +199,19 @@ export function TransactionForm() {
                 <CalendarDays className="h-5 w-5 text-orange-500" />
                 Tanggal
               </label>
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                disabled={isSubmitting}
-                className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-lg font-semibold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none disabled:opacity-50" />
+              <div className="relative">
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+                  disabled={isSubmitting}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer disabled:cursor-not-allowed"
+                  tabIndex={-1}
+                />
+                <div className={`h-14 w-full flex items-center justify-between rounded-xl border-2 px-4 cursor-pointer transition-colors ${isSubmitting ? 'opacity-50 border-slate-200 dark:border-slate-700' : 'border-slate-300 dark:border-slate-600 hover:border-orange-400'} bg-white dark:bg-slate-800`}>
+                  <span className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {date ? date.split('-').reverse().join('/') : 'Pilih tanggal'}
+                  </span>
+                  <CalendarDays className="h-5 w-5 text-slate-400" />
+                </div>
+              </div>
             </div>
 
             {/* Nama Pemesan */}
