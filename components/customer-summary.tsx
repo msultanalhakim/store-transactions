@@ -31,11 +31,11 @@ function SummaryCards({ summaries, onCustomersClick }: {
 
   return (
     <div className="space-y-2">
-      <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-primary/10 p-4 shadow-sm">
+      <div className="rounded-xl border border-border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/30 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Total Pendapatan Kotor</p>
-            <p className="text-2xl font-bold text-primary">{formatRupiah(totalBilled)}</p>
+            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{formatRupiah(totalBilled)}</p>
             <div className="flex flex-col gap-0.5 mt-1">
               <p className="text-xs text-success font-medium">Terbayar: {formatRupiah(totalRevenue)}</p>
               {totalUnpaid > 0 && (
