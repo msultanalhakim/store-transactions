@@ -34,7 +34,7 @@ function SummaryCards({ summaries, onCustomersClick }: {
       <div className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-primary/10 p-4 shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Total Tagihan</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1">Total Pendapatan Kotor</p>
             <p className="text-2xl font-bold text-primary">{formatRupiah(totalBilled)}</p>
             <div className="flex flex-col gap-0.5 mt-1">
               <p className="text-xs text-success font-medium">Terbayar: {formatRupiah(totalRevenue)}</p>
