@@ -12,6 +12,7 @@ import { CustomerSummary } from '@/components/customer-summary'
 import { LoginScreen } from '@/components/login-screen'
 import { useCurrentUser } from '@/hooks/use-store'
 import { logout, initializeFromStorage, formatRupiah } from '@/lib/store'
+import { supabase } from '@/lib/supabase'
 
 // ─── Global Daily Menu State (shared across components) ──────────────────────
 export interface DailyMenuItem { id: string; name: string; price: number }
@@ -24,15 +25,54 @@ export function subscribeDailyMenu(cb: () => void) {
 }
 function notifyDailyMenu() { _menuListeners.forEach((l) => l()) }
 export function getDailyMenu(): DailyMenuItem[] { return _dailyMenuItems }
-export function addDailyMenuItem(name: string, price: number) {
-  _dailyMenuItems = [..._dailyMenuItems, { id: crypto.randomUUID(), name: name.trim(), price }]
+
+export async function loadDailyMenu(): Promise<void> {
+  const { data, error } = await supabase
+    .from('daily_menu')
+    .select('*')
+    .order('created_at', { ascending: true })
+  if (error) { console.error('Error loading menu:', error); return }
+  _dailyMenuItems = (data ?? []).map((row) => ({ id: row.id, name: row.name, price: row.price }))
   notifyDailyMenu()
 }
-export function removeDailyMenuItem(id: string) {
+
+export async function addDailyMenuItem(name: string, price: number): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('daily_menu')
+    .insert({ name: name.trim(), price })
+    .select()
+    .single()
+  if (error || !data) { console.error('Error adding menu item:', error); return false }
+  _dailyMenuItems = [..._dailyMenuItems, { id: data.id, name: data.name, price: data.price }]
+  notifyDailyMenu()
+  return true
+}
+
+export async function updateDailyMenuItem(id: string, name: string, price: number): Promise<boolean> {
+  const { error } = await supabase
+    .from('daily_menu')
+    .update({ name: name.trim(), price })
+    .eq('id', id)
+  if (error) { console.error('Error updating menu item:', error); return false }
+  _dailyMenuItems = _dailyMenuItems.map((m) => m.id === id ? { ...m, name: name.trim(), price } : m)
+  notifyDailyMenu()
+  return true
+}
+
+export async function removeDailyMenuItem(id: string): Promise<boolean> {
+  const { error } = await supabase.from('daily_menu').delete().eq('id', id)
+  if (error) { console.error('Error removing menu item:', error); return false }
   _dailyMenuItems = _dailyMenuItems.filter((m) => m.id !== id)
   notifyDailyMenu()
+  return true
 }
-export function resetDailyMenu() { _dailyMenuItems = []; notifyDailyMenu() }
+
+export async function resetDailyMenu(): Promise<void> {
+  const { error } = await supabase.from('daily_menu').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  if (error) { console.error('Error resetting menu:', error); return }
+  _dailyMenuItems = []
+  notifyDailyMenu()
+}
 
 // ─── Auto-reset menu at 03:00 every day ──────────────────────────────────────
 function msUntil3AM(): number {
@@ -42,11 +82,9 @@ function msUntil3AM(): number {
   if (next3AM <= now) next3AM.setDate(next3AM.getDate() + 1)
   return next3AM.getTime() - now.getTime()
 }
-
 export function scheduleDailyMenuReset() {
   const timeout = setTimeout(() => {
     resetDailyMenu()
-    // Schedule again for the next day
     scheduleDailyMenuReset()
   }, msUntil3AM())
   return () => clearTimeout(timeout)
@@ -97,7 +135,7 @@ function MenuPage() {
 
   useEffect(() => subscribeDailyMenu(() => setMenuItems(getDailyMenu())), [])
 
-  function handleAdd() {
+  async function handleAdd() {
     const trimmed = name.trim()
     const num = parseFloat(price)
     if (!trimmed) { toast.error('Nama menu tidak boleh kosong'); return }
@@ -105,9 +143,13 @@ function MenuPage() {
     if (getDailyMenu().some((m) => m.name.toLowerCase() === trimmed.toLowerCase())) {
       toast.error(`Menu "${trimmed}" sudah ada`); return
     }
-    addDailyMenuItem(trimmed, num)
-    setName(''); setPrice('')
-    toast.success(`Menu "${trimmed}" berhasil ditambahkan`)
+    const ok = await addDailyMenuItem(trimmed, num)
+    if (ok) {
+      setName(''); setPrice('')
+      toast.success(`Menu "${trimmed}" berhasil ditambahkan`)
+    } else {
+      toast.error('Gagal menambahkan menu')
+    }
   }
 
   function handleStartEdit(item: DailyMenuItem) {
@@ -116,32 +158,33 @@ function MenuPage() {
     setEditPrice(item.price.toString())
   }
 
-  function handleSaveEdit() {
+  async function handleSaveEdit() {
     if (!editingId) return
     const trimmed = editName.trim()
     const num = parseFloat(editPrice)
     if (!trimmed) { toast.error('Nama menu tidak boleh kosong'); return }
     if (isNaN(num) || num <= 0) { toast.error('Harga harus lebih dari 0'); return }
-    // Check duplicate (exclude self)
     if (getDailyMenu().some((m) => m.id !== editingId && m.name.toLowerCase() === trimmed.toLowerCase())) {
       toast.error(`Menu "${trimmed}" sudah ada`); return
     }
-    _dailyMenuItems = _dailyMenuItems.map((m) =>
-      m.id === editingId ? { ...m, name: trimmed, price: num } : m
-    )
-    notifyDailyMenu()
-    setEditingId(null)
-    toast.success('Menu berhasil diubah')
+    const ok = await updateDailyMenuItem(editingId, trimmed, num)
+    if (ok) {
+      setEditingId(null)
+      toast.success('Menu berhasil diubah')
+    } else {
+      toast.error('Gagal mengubah menu')
+    }
   }
 
-  function handleDelete(item: DailyMenuItem) {
-    removeDailyMenuItem(item.id)
-    toast.success(`Menu "${item.name}" dihapus`)
+  async function handleDelete(item: DailyMenuItem) {
+    const ok = await removeDailyMenuItem(item.id)
+    if (ok) toast.success(`Menu "${item.name}" dihapus`)
+    else toast.error('Gagal menghapus menu')
   }
 
-  function handleResetAll() {
+  async function handleResetAll() {
     if (menuItems.length === 0) return
-    resetDailyMenu()
+    await resetDailyMenu()
     toast.success('Semua menu berhasil direset')
   }
 
@@ -342,6 +385,7 @@ function AppShell() {
       finally { if (mounted) setTimeout(() => setIsInitializing(false), 100) }
     }
     initialize()
+    loadDailyMenu()
     const cancelReset = scheduleDailyMenuReset()
     return () => { mounted = false; cancelReset() }
   }, [])

@@ -19,7 +19,7 @@ export type Database = {
           id: string
           created_at: string
           date: string
-          order_name: string
+          customer_name: string
           order_items: OrderItem[]
           price: number
           is_paid: boolean
@@ -29,7 +29,7 @@ export type Database = {
           id?: string
           created_at?: string
           date: string
-          order_name: string
+          customer_name: string
           order_items: OrderItem[]
           price: number
           is_paid?: boolean
@@ -39,11 +39,30 @@ export type Database = {
           id?: string
           created_at?: string
           date?: string
-          order_name?: string
+          customer_name?: string
           order_items?: OrderItem[]
           price?: number
           is_paid?: boolean
           paid_amount?: number
+        }
+      }
+      daily_menu: {
+        Row: {
+          id: string
+          created_at: string
+          name: string
+          price: number
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          name: string
+          price: number
+        }
+        Update: {
+          id?: string
+          name?: string
+          price?: number
         }
       }
       users: {
