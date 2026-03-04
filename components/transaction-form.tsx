@@ -166,7 +166,7 @@ export function TransactionForm() {
   return (
     <>
       {/* ── FAB ── */}
-      <button type="button" onClick={() => setFormOpen(true)}
+      <button type="button" onClick={(e) => { e.currentTarget.blur(); setFormOpen(true) }}
         className="fixed bottom-7 right-5 z-40 flex h-20 w-20 items-center justify-center rounded-full bg-orange-500 text-white shadow-2xl hover:bg-orange-600 active:scale-95 transition-all"
         aria-label="Catat Pesanan Baru">
         <Plus className="h-9 w-9" strokeWidth={3} />
