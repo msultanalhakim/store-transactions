@@ -5,6 +5,12 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+export type OrderItem = {
+  name: string
+  price: number
+  qty: number
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -14,27 +20,30 @@ export type Database = {
           created_at: string
           date: string
           customer_name: string
-          order_name: string
+          order_items: OrderItem[]
           price: number
           is_paid: boolean
+          paid_amount: number
         }
         Insert: {
           id?: string
           created_at?: string
           date: string
           customer_name: string
-          order_name: string
+          order_items: OrderItem[]
           price: number
           is_paid?: boolean
+          paid_amount?: number
         }
         Update: {
           id?: string
           created_at?: string
           date?: string
           customer_name?: string
-          order_name?: string
+          order_items?: OrderItem[]
           price?: number
           is_paid?: boolean
+          paid_amount?: number
         }
       }
       users: {

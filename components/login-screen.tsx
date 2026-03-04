@@ -6,9 +6,7 @@ import { toast } from 'sonner'
 import { login } from '@/lib/store'
 
 export function LoginScreen() {
-  const [selectedUser, setSelectedUser] = useState<'admin' | 'user' | null>(
-    null,
-  )
+  const [selectedUser, setSelectedUser] = useState<'admin' | 'user' | null>(null)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -16,176 +14,140 @@ export function LoginScreen() {
 
   async function handleLogin() {
     if (!selectedUser || !password) return
-    
     setError('')
     setIsLoading(true)
-    
     try {
       const user = await login(selectedUser, password)
-      
       if (user) {
         toast.success(`Selamat datang, ${user.username}!`)
       } else {
-        setError('Password salah, coba lagi.')
+        setError('Password salah. Coba lagi.')
         setPassword('')
       }
-    } catch (error) {
-      setError('Terjadi kesalahan saat login')
-      console.error(error)
+    } catch {
+      setError('Terjadi kesalahan. Coba lagi.')
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-orange-50 dark:bg-slate-950 px-5">
       <div className="w-full max-w-sm">
-        {/* Logo / App Name */}
-        <div className="mb-8 flex flex-col items-center gap-2">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-            <ShieldCheck className="h-8 w-8 text-primary-foreground" />
+
+        {/* Logo */}
+        <div className="mb-10 flex flex-col items-center gap-3">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-orange-500 shadow-lg">
+            <ShieldCheck className="h-10 w-10 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white text-center leading-tight">
             Catatan Transaksi
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-lg text-slate-600 dark:text-slate-400 text-center">
             Pilih akun lalu masukkan password
           </p>
         </div>
 
-        {/* User selection */}
-        <div className="mb-5">
-          <label className="mb-2 block text-sm font-medium text-foreground">
-            Masuk sebagai
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedUser('admin')
-                setError('')
-                setPassword('')
-              }}
+        {/* Pilih akun */}
+        <div className="mb-6">
+          <p className="mb-3 text-lg font-bold text-slate-800 dark:text-slate-200">
+            Masuk sebagai:
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Admin */}
+            <button type="button"
+              onClick={() => { setSelectedUser('admin'); setError(''); setPassword('') }}
               disabled={isLoading}
-              className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`flex flex-col items-center gap-3 rounded-2xl border-3 p-5 transition-all disabled:opacity-50 ${
                 selectedUser === 'admin'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-card'
+                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-300 dark:ring-orange-700'
+                  : 'border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-orange-300'
               }`}
-            >
-              <div
-                className={`flex h-11 w-11 items-center justify-center rounded-full ${
-                  selectedUser === 'admin'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                <ShieldCheck className="h-5 w-5" />
+              style={{ borderWidth: selectedUser === 'admin' ? '3px' : '2px' }}>
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full ${
+                selectedUser === 'admin' ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700'
+              }`}>
+                <ShieldCheck className={`h-7 w-7 ${selectedUser === 'admin' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
               </div>
-              <span
-                className={`text-sm font-semibold ${
-                  selectedUser === 'admin'
-                    ? 'text-primary'
-                    : 'text-card-foreground'
-                }`}
-              >
+              <span className={`text-lg font-bold ${selectedUser === 'admin' ? 'text-orange-600 dark:text-orange-400' : 'text-slate-700 dark:text-slate-300'}`}>
                 Admin
               </span>
+              {selectedUser === 'admin' && (
+                <div className="h-2 w-2 rounded-full bg-orange-500" />
+              )}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedUser('user')
-                setError('')
-                setPassword('')
-              }}
+
+            {/* User */}
+            <button type="button"
+              onClick={() => { setSelectedUser('user'); setError(''); setPassword('') }}
               disabled={isLoading}
-              className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`flex flex-col items-center gap-3 rounded-2xl p-5 transition-all disabled:opacity-50 ${
                 selectedUser === 'user'
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-card'
+                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-300 dark:ring-orange-700'
+                  : 'border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-orange-300'
               }`}
-            >
-              <div
-                className={`flex h-11 w-11 items-center justify-center rounded-full ${
-                  selectedUser === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                <User className="h-5 w-5" />
+              style={{ borderWidth: selectedUser === 'user' ? '3px' : '2px', borderStyle: 'solid' }}>
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full ${
+                selectedUser === 'user' ? 'bg-orange-500' : 'bg-slate-200 dark:bg-slate-700'
+              }`}>
+                <User className={`h-7 w-7 ${selectedUser === 'user' ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
               </div>
-              <span
-                className={`text-sm font-semibold ${
-                  selectedUser === 'user'
-                    ? 'text-primary'
-                    : 'text-card-foreground'
-                }`}
-              >
+              <span className={`text-lg font-bold ${selectedUser === 'user' ? 'text-orange-600 dark:text-orange-400' : 'text-slate-700 dark:text-slate-300'}`}>
                 User
               </span>
+              {selectedUser === 'user' && (
+                <div className="h-2 w-2 rounded-full bg-orange-500" />
+              )}
             </button>
           </div>
         </div>
 
-        {/* Password field */}
+        {/* Password */}
         {selectedUser && (
-          <div className="mb-5 flex flex-col gap-2">
-            <label htmlFor="password" className="text-sm font-medium">
+          <div className="mb-6">
+            <label htmlFor="password" className="mb-2 block text-lg font-bold text-slate-800 dark:text-slate-200">
               Password
             </label>
             <div className="relative">
-              <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Masukkan password"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  setError('')
-                }}
+                onChange={(e) => { setPassword(e.target.value); setError('') }}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 disabled={isLoading}
-                className="h-12 w-full rounded-lg border border-input bg-background pl-10 pr-12 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 pl-12 pr-14 text-lg text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 dark:focus:ring-orange-900 disabled:opacity-50"
                 autoFocus
                 autoComplete="current-password"
               />
-              <button
-                type="button"
+              <button type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isLoading}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-5 w-5" />
-                ) : (
-                  <Eye className="h-5 w-5" />
-                )}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>
+                {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
               </button>
             </div>
             {error && (
-              <p className="text-sm font-medium text-destructive">{error}</p>
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-4 py-3">
+                <span className="text-base font-semibold text-red-600 dark:text-red-400">{error}</span>
+              </div>
             )}
           </div>
         )}
 
-        {/* Login button */}
-        <button
-          type="button"
-          onClick={handleLogin}
-          className="h-12 w-full rounded-lg bg-primary text-base font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={!selectedUser || !password || isLoading}
-        >
+        {/* Tombol Masuk */}
+        <button type="button" onClick={handleLogin}
+          className="h-16 w-full rounded-2xl bg-orange-500 text-xl font-extrabold text-white shadow-lg transition-all hover:bg-orange-600 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={!selectedUser || !password || isLoading}>
           {isLoading ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Memproses...
+            <span className="flex items-center justify-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span>Memproses...</span>
             </span>
-          ) : (
-            'Masuk'
-          )}
+          ) : 'Masuk'}
         </button>
       </div>
     </div>

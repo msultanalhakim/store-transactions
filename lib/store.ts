@@ -1,20 +1,25 @@
-import { supabase } from './supabase'
+import { supabase, type OrderItem } from './supabase'
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+export type { OrderItem }
 
 export interface Transaction {
   id: string
   date: string
   customerName: string
-  orderName: string
-  price: number
+  orderItems: OrderItem[]  // array of { name, price, qty }
+  price: number            // sum of all items (denormalized)
   isPaid: boolean
-  paidAmount?: number // Track installment payments
+  paidAmount: number
 }
 
 export interface CustomerSummary {
   customerName: string
-  totalOrders: number
-  totalAmount: number
-  unpaidAmount: number
+  totalOrders: number      // number of transaction rows
+  totalAmount: number      // sum of all price
+  paidAmount: number       // sum of all paid_amount
+  unpaidAmount: number     // totalAmount - paidAmount
   unpaidOrders: Transaction[]
 }
 
@@ -25,56 +30,17 @@ export interface AuthUser {
   role: UserRole
 }
 
+// ─── In-memory state ────────────────────────────────────────────────────────
+
 let currentUser: AuthUser | null = null
 let transactions: Transaction[] = []
 let listeners: Array<() => void> = []
 let isInitialized = false
 
-// Initialize from localStorage (call this in component useEffect)
-export async function initializeFromStorage(): Promise<void> {
-  if (typeof window !== 'undefined' && !isInitialized) {
-    try {
-      const savedUser = localStorage.getItem('catatan-transaksi-user')
-      
-      if (savedUser) {
-        const parsedUser = JSON.parse(savedUser) as AuthUser
-        
-        // Validate user object structure
-        if (parsedUser && 
-            typeof parsedUser.username === 'string' && 
-            (parsedUser.role === 'admin' || parsedUser.role === 'user')) {
-          
-          currentUser = parsedUser
-          
-          // Auto-load transactions if user exists - wait for it to complete
-          try {
-            await loadTransactions()
-          } catch (err) {
-            console.error('Failed to load transactions on init:', err)
-          }
-        } else {
-          // Invalid user data, clear it
-          console.warn('Invalid user data in localStorage, clearing...')
-          localStorage.removeItem('catatan-transaksi-user')
-        }
-      }
-      
-      isInitialized = true
-      notifyListeners()
-    } catch (err) {
-      console.error('Error loading from localStorage:', err)
-      // Clear potentially corrupted data
-      localStorage.removeItem('catatan-transaksi-user')
-      isInitialized = true
-      notifyListeners()
-    }
-  }
-}
+// ─── Pub/Sub ────────────────────────────────────────────────────────────────
 
 function notifyListeners() {
-  for (const listener of listeners) {
-    listener()
-  }
+  for (const listener of listeners) listener()
 }
 
 export function subscribe(listener: () => void) {
@@ -84,122 +50,94 @@ export function subscribe(listener: () => void) {
   }
 }
 
-// Persist user to localStorage with validation
+// ─── Session (localStorage for auth token only) ─────────────────────────────
+
 function persistUser(user: AuthUser | null) {
-  if (typeof window !== 'undefined') {
-    try {
-      if (user) {
-        // Validate before saving
-        if (typeof user.username === 'string' && 
-            (user.role === 'admin' || user.role === 'user')) {
-          localStorage.setItem('catatan-transaksi-user', JSON.stringify(user))
-        } else {
-          console.error('Invalid user object, not persisting')
-        }
-      } else {
-        localStorage.removeItem('catatan-transaksi-user')
-      }
-    } catch (err) {
-      console.error('Error persisting user to localStorage:', err)
+  if (typeof window === 'undefined') return
+  try {
+    if (user) {
+      localStorage.setItem('ct-session', JSON.stringify(user))
+    } else {
+      localStorage.removeItem('ct-session')
     }
+  } catch {}
+}
+
+function loadUserFromStorage(): AuthUser | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem('ct-session')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as AuthUser
+    if (
+      typeof parsed.username === 'string' &&
+      (parsed.role === 'admin' || parsed.role === 'user')
+    ) {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
   }
 }
 
-// Simple hash function for password comparison (client-side compatible)
-// For production, use Supabase Auth or proper backend authentication
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+export async function initializeFromStorage(): Promise<void> {
+  if (isInitialized) return
+  isInitialized = true
+
+  const savedUser = loadUserFromStorage()
+  if (savedUser) {
+    currentUser = savedUser
+    await loadTransactions()
+  }
+  notifyListeners()
+}
+
+// ─── Password hashing ────────────────────────────────────────────────────────
+
 async function hashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder()
   const data = encoder.encode(password)
   const hashBuffer = await crypto.subtle.digest('SHA-256', data)
   const hashArray = Array.from(new Uint8Array(hashBuffer))
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  return hashHex
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Utility function to generate hash for storing in database
-// Usage: console.log(await generatePasswordHash('your_password'))
-// Copy the result and store it in Supabase users table
 export async function generatePasswordHash(password: string): Promise<string> {
-  return await hashPassword(password)
+  return hashPassword(password)
 }
 
-// Check if user session is valid
-export function hasValidSession(): boolean {
-  return currentUser !== null
-}
+// ─── Auth ────────────────────────────────────────────────────────────────────
 
-// Auth functions with better error handling
 export async function login(username: string, password: string): Promise<AuthUser | null> {
-  try {
-    // Validate input
-    if (!username.trim() || !password.trim()) {
-      console.error('Username and password are required')
-      return null
-    }
+  if (!username.trim() || !password.trim()) return null
 
-    // Query user from Supabase
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('username', username.trim().toLowerCase())
-      .single()
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('username', username.trim().toLowerCase())
+    .single()
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        console.error('User not found')
-      } else {
-        console.error('Login error:', error)
-      }
-      return null
-    }
+  if (error || !data) return null
 
-    if (!data) {
-      console.error('User not found')
-      return null
-    }
+  const hashedPassword = await hashPassword(password)
+  if (data.password_hash !== hashedPassword) return null
 
-    // Hash password and compare
-    const hashedPassword = await hashPassword(password)
-    
-    if (data.password_hash !== hashedPassword) {
-      console.error('Invalid password')
-      return null
-    }
-
-    // Login successful - create session
-    const user: AuthUser = { 
-      username: data.username, 
-      role: data.role as UserRole 
-    }
-    
-    currentUser = user
-    persistUser(user)
-    
-    // Load user's transactions
-    await loadTransactions()
-    
-    notifyListeners()
-    return user
-  } catch (err) {
-    console.error('Login exception:', err)
-    return null
-  }
+  const user: AuthUser = { username: data.username, role: data.role as UserRole }
+  currentUser = user
+  persistUser(user)
+  await loadTransactions()
+  notifyListeners()
+  return user
 }
 
 export function logout(): void {
-  // Clear current user
   currentUser = null
-  
-  // Clear transactions
   transactions = []
-  
-  // Clear from localStorage
-  persistUser(null)
-  
-  // Reset initialization flag
   isInitialized = false
-  
-  // Notify all listeners
+  persistUser(null)
   notifyListeners()
 }
 
@@ -211,350 +149,329 @@ export function isAdmin(): boolean {
   return currentUser?.role === 'admin'
 }
 
-// Load all transactions from Supabase
-export async function loadTransactions(): Promise<void> {
-  try {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .order('date', { ascending: false })
+// ─── Row mapper ──────────────────────────────────────────────────────────────
 
-    if (error) {
-      console.error('Error loading transactions:', error)
-      return
-    }
+function mapRow(row: any): Transaction {
+  const items: OrderItem[] = Array.isArray(row.order_items) ? row.order_items : []
+  // Recalculate price from items for integrity
+  const calculatedPrice = items.reduce((s, i) => s + i.price * i.qty, 0)
+  const price = calculatedPrice > 0 ? calculatedPrice : (row.price ?? 0)
+  const paidAmount = Number(row.paid_amount ?? 0)
+  const isPaid = row.is_paid === true
 
-    if (data) {
-      transactions = data.map(row => ({
-        id: row.id,
-        date: row.date,
-        customerName: row.customer_name,
-        orderName: row.order_name,
-        price: row.price,
-        isPaid: row.is_paid,
-        paidAmount: row.paid_amount || 0
-      }))
-      notifyListeners()
-    }
-  } catch (err) {
-    console.error('Load transactions exception:', err)
+  return {
+    id: row.id,
+    date: row.date,
+    customerName: row.customer_name,
+    orderItems: items,
+    price,
+    isPaid,
+    paidAmount,
   }
+}
+
+// ─── Load ────────────────────────────────────────────────────────────────────
+
+export async function loadTransactions(): Promise<void> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error loading transactions:', error)
+    return
+  }
+
+  transactions = (data ?? []).map(mapRow)
+  notifyListeners()
 }
 
 export function getTransactions(): Transaction[] {
   return transactions
 }
 
-export async function addTransaction(data: Omit<Transaction, 'id'>): Promise<Transaction | null> {
-  try {
-    const { data: newRow, error } = await supabase
-      .from('transactions')
-      .insert({
-        date: data.date,
-        customer_name: data.customerName,
-        order_name: data.orderName,
-        price: data.price,
-        is_paid: data.isPaid
-      })
-      .select()
-      .single()
+// ─── Add ─────────────────────────────────────────────────────────────────────
 
-    if (error) {
-      console.error('Error adding transaction:', error)
-      return null
-    }
+export interface AddTransactionInput {
+  date: string
+  customerName: string
+  orderItems: OrderItem[]
+  isPaid: boolean
+}
 
-    if (newRow) {
-      const newTransaction: Transaction = {
-        id: newRow.id,
-        date: newRow.date,
-        customerName: newRow.customer_name,
-        orderName: newRow.order_name,
-        price: newRow.price,
-        isPaid: newRow.is_paid
-      }
-      transactions = [newTransaction, ...transactions]
-      notifyListeners()
-      return newTransaction
-    }
-    
-    return null
-  } catch (err) {
-    console.error('Add transaction exception:', err)
+export async function addTransaction(input: AddTransactionInput): Promise<Transaction | null> {
+  // Validate: at least one item with qty > 0
+  const validItems = input.orderItems.filter((i) => i.qty > 0 && i.price > 0)
+  if (validItems.length === 0) return null
+
+  const totalPrice = validItems.reduce((s, i) => s + i.price * i.qty, 0)
+  if (totalPrice <= 0) return null
+
+  const { data: newRow, error } = await supabase
+    .from('transactions')
+    .insert({
+      date: input.date,
+      customer_name: input.customerName.trim(),
+      order_items: validItems,
+      price: totalPrice,
+      is_paid: input.isPaid,
+      paid_amount: input.isPaid ? totalPrice : 0,
+    })
+    .select()
+    .single()
+
+  if (error || !newRow) {
+    console.error('Error adding transaction:', error)
     return null
   }
+
+  const tx = mapRow(newRow)
+  transactions = [tx, ...transactions]
+  notifyListeners()
+  return tx
 }
 
-export async function editTransaction(id: string, data: Partial<Omit<Transaction, 'id'>>): Promise<void> {
-  try {
-    const updateData: any = {}
-    if (data.date !== undefined) updateData.date = data.date
-    if (data.customerName !== undefined) updateData.customer_name = data.customerName
-    if (data.orderName !== undefined) updateData.order_name = data.orderName
-    if (data.price !== undefined) updateData.price = data.price
-    if (data.isPaid !== undefined) updateData.is_paid = data.isPaid
+// ─── Edit ────────────────────────────────────────────────────────────────────
 
-    const { error } = await supabase
-      .from('transactions')
-      .update(updateData)
-      .eq('id', id)
+export interface EditTransactionInput {
+  date?: string
+  customerName?: string
+  orderItems?: OrderItem[]
+  isPaid?: boolean
+  paidAmount?: number
+}
 
-    if (error) {
-      console.error('Error editing transaction:', error)
-      return
-    }
-
-    transactions = transactions.map((t) =>
-      t.id === id ? { ...t, ...data } : t
-    )
-    notifyListeners()
-  } catch (err) {
-    console.error('Edit transaction exception:', err)
+export async function editTransaction(id: string, data: EditTransactionInput): Promise<boolean> {
+  const updateData: Record<string, unknown> = {}
+  if (data.date !== undefined) updateData.date = data.date
+  if (data.customerName !== undefined) updateData.customer_name = data.customerName.trim()
+  if (data.orderItems !== undefined) {
+    const validItems = data.orderItems.filter((i) => i.qty > 0 && i.price > 0)
+    updateData.order_items = validItems
+    updateData.price = validItems.reduce((s, i) => s + i.price * i.qty, 0)
   }
-}
+  if (data.isPaid !== undefined) updateData.is_paid = data.isPaid
+  if (data.paidAmount !== undefined) updateData.paid_amount = data.paidAmount
 
-export async function togglePaidStatus(id: string): Promise<void> {
-  const transaction = transactions.find(t => t.id === id)
-  if (!transaction) return
-
-  const newStatus = !transaction.isPaid
-
-  try {
-    const { error } = await supabase
-      .from('transactions')
-      .update({ is_paid: newStatus })
-      .eq('id', id)
-
-    if (error) {
-      console.error('Error toggling paid status:', error)
-      return
-    }
-
-    transactions = transactions.map((t) =>
-      t.id === id ? { ...t, isPaid: newStatus, paidAmount: newStatus ? t.price : 0 } : t
-    )
-    notifyListeners()
-  } catch (err) {
-    console.error('Toggle paid status exception:', err)
-  }
-}
-
-// Make installment payment for a customer's unpaid orders
-export async function makePayment(customerName: string, amount: number): Promise<boolean> {
-  try {
-    // Get all unpaid transactions for this customer
-    const unpaidTransactions = transactions.filter(
-      t => t.customerName === customerName && !t.isPaid
-    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) // oldest first
-
-    let remainingPayment = amount
-
-    for (const transaction of unpaidTransactions) {
-      if (remainingPayment <= 0) break
-
-      const currentPaid = transaction.paidAmount || 0
-      const remaining = transaction.price - currentPaid
-      
-      if (remaining <= 0) continue // already fully paid
-
-      const paymentForThis = Math.min(remaining, remainingPayment)
-      const newPaidAmount = currentPaid + paymentForThis
-      const isFullyPaid = newPaidAmount >= transaction.price
-
-      // Update in Supabase
-      const { error } = await supabase
-        .from('transactions')
-        .update({ 
-          is_paid: isFullyPaid,
-          paid_amount: newPaidAmount
-        })
-        .eq('id', transaction.id)
-
-      if (error) {
-        console.error('Error updating payment:', error)
-        return false
-      }
-
-      // Update local state
-      transactions = transactions.map((t) =>
-        t.id === transaction.id 
-          ? { ...t, isPaid: isFullyPaid, paidAmount: newPaidAmount } 
-          : t
-      )
-
-      remainingPayment -= paymentForThis
-    }
-
-    notifyListeners()
-    return true
-  } catch (err) {
-    console.error('Make payment exception:', err)
+  const { error } = await supabase.from('transactions').update(updateData).eq('id', id)
+  if (error) {
+    console.error('Error editing transaction:', error)
     return false
   }
+
+  transactions = transactions.map((t) => {
+    if (t.id !== id) return t
+    const updated = { ...t }
+    if (data.date !== undefined) updated.date = data.date
+    if (data.customerName !== undefined) updated.customerName = data.customerName.trim()
+    if (data.orderItems !== undefined) {
+      const validItems = data.orderItems.filter((i) => i.qty > 0 && i.price > 0)
+      updated.orderItems = validItems
+      updated.price = validItems.reduce((s, i) => s + i.price * i.qty, 0)
+    }
+    if (data.isPaid !== undefined) updated.isPaid = data.isPaid
+    if (data.paidAmount !== undefined) updated.paidAmount = data.paidAmount
+    return updated
+  })
+  notifyListeners()
+  return true
 }
 
-export async function deleteTransaction(id: string): Promise<void> {
-  try {
+// ─── Toggle Paid ─────────────────────────────────────────────────────────────
+
+export async function togglePaidStatus(id: string): Promise<boolean> {
+  const transaction = transactions.find((t) => t.id === id)
+  if (!transaction) return false
+
+  const newIsPaid = !transaction.isPaid
+  // If marking as paid: set paid_amount = price
+  // If marking as unpaid: set paid_amount = 0
+  const newPaidAmount = newIsPaid ? transaction.price : 0
+
+  const { error } = await supabase
+    .from('transactions')
+    .update({ is_paid: newIsPaid, paid_amount: newPaidAmount })
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error toggling paid status:', error)
+    return false
+  }
+
+  transactions = transactions.map((t) =>
+    t.id === id ? { ...t, isPaid: newIsPaid, paidAmount: newPaidAmount } : t
+  )
+  notifyListeners()
+  return true
+}
+
+// ─── Make Payment ────────────────────────────────────────────────────────────
+// Applies payment to oldest unpaid/partially-paid transactions first.
+// Only commits to DB if entire operation succeeds (validates locally first).
+
+export async function makePayment(customerName: string, amount: number): Promise<boolean> {
+  if (amount <= 0) return false
+
+  // Get unpaid transactions for this customer, oldest first
+  const unpaid = transactions
+    .filter((t) => t.customerName === customerName && t.paidAmount < t.price)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  if (unpaid.length === 0) return false
+
+  const totalRemaining = unpaid.reduce((s, t) => s + (t.price - t.paidAmount), 0)
+  if (amount > totalRemaining) {
+    // Clamp to total remaining to avoid overpayment
+    amount = totalRemaining
+  }
+
+  // Build update plan
+  const updates: Array<{ id: string; isPaid: boolean; paidAmount: number }> = []
+  let remaining = amount
+
+  for (const t of unpaid) {
+    if (remaining <= 0) break
+    const owed = t.price - t.paidAmount
+    const pay = Math.min(owed, remaining)
+    const newPaid = t.paidAmount + pay
+    const newIsPaid = newPaid >= t.price
+    updates.push({ id: t.id, isPaid: newIsPaid, paidAmount: newPaid })
+    remaining -= pay
+  }
+
+  // Apply updates to Supabase
+  for (const upd of updates) {
     const { error } = await supabase
       .from('transactions')
-      .delete()
-      .eq('id', id)
+      .update({ is_paid: upd.isPaid, paid_amount: upd.paidAmount })
+      .eq('id', upd.id)
 
     if (error) {
-      console.error('Error deleting transaction:', error)
-      return
+      console.error('Error making payment for transaction:', upd.id, error)
+      // Reload from DB to ensure consistency
+      await loadTransactions()
+      return false
     }
-
-    transactions = transactions.filter((t) => t.id !== id)
-    notifyListeners()
-  } catch (err) {
-    console.error('Delete transaction exception:', err)
   }
+
+  // Update local state
+  const updMap = new Map(updates.map((u) => [u.id, u]))
+  transactions = transactions.map((t) => {
+    const upd = updMap.get(t.id)
+    if (!upd) return t
+    return { ...t, isPaid: upd.isPaid, paidAmount: upd.paidAmount }
+  })
+  notifyListeners()
+  return true
 }
 
-// Get customer summaries for a specific month or all-time
-// month format: "2026-02" for filtering by transaction date
+// ─── Delete ──────────────────────────────────────────────────────────────────
+
+export async function deleteTransaction(id: string): Promise<boolean> {
+  const { error } = await supabase.from('transactions').delete().eq('id', id)
+  if (error) {
+    console.error('Error deleting transaction:', error)
+    return false
+  }
+
+  transactions = transactions.filter((t) => t.id !== id)
+  notifyListeners()
+  return true
+}
+
+// ─── Summaries ───────────────────────────────────────────────────────────────
+
+function buildSummaries(txs: Transaction[]): CustomerSummary[] {
+  const map = new Map<string, CustomerSummary>()
+
+  for (const t of txs) {
+    const owed = t.price - t.paidAmount
+
+    const existing = map.get(t.customerName)
+    if (existing) {
+      existing.totalOrders += 1
+      existing.totalAmount += t.price
+      existing.paidAmount += t.paidAmount
+      existing.unpaidAmount += Math.max(0, owed)
+      if (owed > 0) existing.unpaidOrders.push(t)
+    } else {
+      map.set(t.customerName, {
+        customerName: t.customerName,
+        totalOrders: 1,
+        totalAmount: t.price,
+        paidAmount: t.paidAmount,
+        unpaidAmount: Math.max(0, owed),
+        unpaidOrders: owed > 0 ? [t] : [],
+      })
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (b.unpaidAmount !== a.unpaidAmount) return b.unpaidAmount - a.unpaidAmount
+    return a.customerName.localeCompare(b.customerName)
+  })
+}
+
 export function getCustomerSummaries(month?: string): CustomerSummary[] {
-  // Filter transactions by month if specified
   const filtered = month
     ? transactions.filter((t) => t.date.startsWith(month))
     : transactions
-
-  const map = new Map<string, CustomerSummary>()
-
-  for (const t of filtered) {
-    const currentPaid = t.paidAmount || 0
-    const remainingAmount = t.price - currentPaid
-
-    const existing = map.get(t.customerName)
-    if (existing) {
-      existing.totalOrders += 1
-      existing.totalAmount += t.price
-      if (remainingAmount > 0) {
-        existing.unpaidAmount += remainingAmount
-        existing.unpaidOrders.push(t)
-      }
-    } else {
-      map.set(t.customerName, {
-        customerName: t.customerName,
-        totalOrders: 1,
-        totalAmount: t.price,
-        unpaidAmount: remainingAmount > 0 ? remainingAmount : 0,
-        unpaidOrders: remainingAmount > 0 ? [t] : [],
-      })
-    }
-  }
-
-  // Sort by unpaid amount (highest first), then by name
-  return Array.from(map.values()).sort((a, b) => {
-    if (b.unpaidAmount !== a.unpaidAmount) {
-      return b.unpaidAmount - a.unpaidAmount
-    }
-    return a.customerName.localeCompare(b.customerName)
-  })
+  return buildSummaries(filtered)
 }
 
-// New function for all-time summaries (shows all transactions across all months)
 export function getAllCustomerSummaries(): CustomerSummary[] {
-  const map = new Map<string, CustomerSummary>()
-
-  for (const t of transactions) {
-    const currentPaid = t.paidAmount || 0
-    const remainingAmount = t.price - currentPaid
-
-    const existing = map.get(t.customerName)
-    if (existing) {
-      existing.totalOrders += 1
-      existing.totalAmount += t.price
-      if (remainingAmount > 0) {
-        existing.unpaidAmount += remainingAmount
-        existing.unpaidOrders.push(t)
-      }
-    } else {
-      map.set(t.customerName, {
-        customerName: t.customerName,
-        totalOrders: 1,
-        totalAmount: t.price,
-        unpaidAmount: remainingAmount > 0 ? remainingAmount : 0,
-        unpaidOrders: remainingAmount > 0 ? [t] : [],
-      })
-    }
-  }
-
-  // Sort by unpaid amount (highest first), then by name
-  return Array.from(map.values()).sort((a, b) => {
-    if (b.unpaidAmount !== a.unpaidAmount) {
-      return b.unpaidAmount - a.unpaidAmount
-    }
-    return a.customerName.localeCompare(b.customerName)
-  })
+  return buildSummaries(transactions)
 }
 
-// Get available years (from first transaction to current year)
+// ─── Date helpers ────────────────────────────────────────────────────────────
+
 export function getAvailableYears(): string[] {
   if (transactions.length === 0) return []
-  
   const now = new Date()
   const currentYear = now.getFullYear()
-  
-  // Find earliest year
   let earliestYear = currentYear
   for (const t of transactions) {
-    const year = parseInt(t.date.substring(0, 4), 10)
-    if (year < earliestYear) {
-      earliestYear = year
-    }
+    const y = parseInt(t.date.substring(0, 4), 10)
+    if (y < earliestYear) earliestYear = y
   }
-  
-  // Generate all years from earliest to current (ascending)
   const years: string[] = []
   for (let y = earliestYear; y <= currentYear; y++) {
     years.push(y.toString())
   }
-  
   return years
 }
 
-// Get available months for a specific year (from first transaction to current month)
 export function getAvailableMonthsForYear(year: string): string[] {
-  if (transactions.length === 0) return []
-  
   const now = new Date()
   const currentYear = now.getFullYear().toString()
-  const currentMonth = now.getMonth() + 1 // 1-12
-  
-  // Find earliest transaction in this year
-  let earliestMonth = 12
+  const currentMonth = now.getMonth() + 1
+
+  const monthsInYear = new Set<number>()
   for (const t of transactions) {
     if (t.date.startsWith(year)) {
-      const month = parseInt(t.date.substring(5, 7), 10)
-      if (month < earliestMonth) {
-        earliestMonth = month
-      }
+      monthsInYear.add(parseInt(t.date.substring(5, 7), 10))
     }
   }
-  
-  // If no transactions in this year, return empty
-  if (earliestMonth === 12 && !transactions.some(t => t.date.startsWith(year))) {
-    return []
-  }
-  
-  // Determine end month
-  let endMonth = 12
+
+  // Always include current month in current year
   if (year === currentYear) {
-    endMonth = currentMonth
+    monthsInYear.add(currentMonth)
   }
-  
-  // Generate all months from earliest to end (ascending)
+
+  if (monthsInYear.size === 0) return []
+
+  const minMonth = Math.min(...Array.from(monthsInYear))
+  const maxMonth = year === currentYear ? currentMonth : 12
+
   const months: string[] = []
-  for (let m = earliestMonth; m <= endMonth; m++) {
+  for (let m = minMonth; m <= maxMonth; m++) {
     months.push(m.toString().padStart(2, '0'))
   }
-  
   return months
 }
 
-// Month names for dropdown
 export const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
@@ -572,6 +489,8 @@ export function getCurrentYearMonth(): { year: string; month: string } {
   return { year, month }
 }
 
+// ─── Formatters ──────────────────────────────────────────────────────────────
+
 export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -582,80 +501,64 @@ export function formatRupiah(amount: number): string {
 }
 
 export function formatDateShort(dateString: string): string {
-  // Format: DD/MM
-  const [year, month, day] = dateString.split('-')
+  const [, month, day] = dateString.split('-')
   return `${day}/${month}`
 }
 
 export function formatDateFull(dateString: string): string {
-  // Format: DD Bulan YYYY (e.g., "12 Februari 2026")
   const [year, month, day] = dateString.split('-')
   const monthName = MONTH_NAMES[parseInt(month, 10) - 1]
-  return `${day} ${monthName} ${year}`
+  return `${parseInt(day, 10)} ${monthName} ${year}`
 }
 
-export function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
-}
+// ─── CSV Export ──────────────────────────────────────────────────────────────
 
-// Export transactions to CSV
 export function exportTransactionsToCSV(month?: string): string {
-  // Filter transactions if month is specified
   const filtered = month
     ? transactions.filter((t) => t.date.startsWith(month))
     : transactions
 
-  // Sort by date (newest first)
-  const sorted = [...filtered].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+  const sorted = [...filtered].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   )
 
-  // CSV Header
-  const headers = ['Tanggal', 'Pemesan', 'Pesanan', 'Harga', 'Status', 'Terbayar', 'Sisa']
-  
-  // CSV Rows
-  const rows = sorted.map(t => {
-    const paidAmount = t.paidAmount || 0
-    const remaining = t.price - paidAmount
-    return [
-      t.date,
-      t.customerName,
-      t.orderName,
-      t.price.toString(),
-      t.isPaid ? 'Lunas' : 'Belum Bayar',
-      paidAmount.toString(),
-      remaining.toString()
-    ]
-  })
+  const headers = ['Tanggal', 'Pemesan', 'Menu', 'Qty', 'Harga Satuan', 'Subtotal', 'Total Pesanan', 'Status', 'Terbayar', 'Sisa']
 
-  // Combine headers and rows
-  const csvContent = [
+  const rows: string[][] = []
+  for (const t of sorted) {
+    t.orderItems.forEach((item, idx) => {
+      const owed = t.price - t.paidAmount
+      rows.push([
+        idx === 0 ? t.date : '',
+        idx === 0 ? t.customerName : '',
+        item.name,
+        item.qty.toString(),
+        item.price.toString(),
+        (item.price * item.qty).toString(),
+        idx === 0 ? t.price.toString() : '',
+        idx === 0 ? (t.isPaid ? 'Lunas' : t.paidAmount > 0 ? 'Cicilan' : 'Belum Bayar') : '',
+        idx === 0 ? t.paidAmount.toString() : '',
+        idx === 0 ? Math.max(0, owed).toString() : '',
+      ])
+    })
+  }
+
+  return [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
   ].join('\n')
-
-  return csvContent
 }
 
-// Download CSV file
 export function downloadCSV(csvContent: string, filename: string) {
   if (typeof window === 'undefined') return
-
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
-  
-  if (link.download !== undefined) {
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', filename)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-  }
+  const url = URL.createObjectURL(blob)
+  link.setAttribute('href', url)
+  link.setAttribute('download', filename)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }

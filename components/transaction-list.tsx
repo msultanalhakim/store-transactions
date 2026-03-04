@@ -2,198 +2,97 @@
 
 import { useState, useMemo } from 'react'
 import {
-  CalendarDays,
-  Trash2,
-  Pencil,
-  ArrowUpDown,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Info,
-  AlertCircle,
+  CalendarDays, Trash2, Pencil, ChevronDown,
+  ChevronLeft, ChevronRight, AlertCircle, Receipt,
+  ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useStore, useCurrentUser } from '@/hooks/use-store'
 import {
-  getTransactions,
-  editTransaction,
-  deleteTransaction,
-  togglePaidStatus,
-  getAvailableYears,
-  getAvailableMonthsForYear,
-  formatRupiah,
-  formatDateShort,
-  formatDateFull,
-  formatMonthLabel,
-  getCurrentYearMonth,
-  type Transaction,
+  getTransactions, editTransaction, deleteTransaction, togglePaidStatus,
+  getAvailableYears, getAvailableMonthsForYear,
+  formatRupiah, formatDateShort, formatDateFull, formatMonthLabel,
+  getCurrentYearMonth, type Transaction, type OrderItem,
 } from '@/lib/store'
 
 type SortOrder = 'newest' | 'oldest'
 
-/* ── Compact Date Selector ── */
-function DateSelector({
-  years,
-  months,
-  selectedYear,
-  selectedMonth,
-  onYearChange,
-  onMonthChange,
-}: {
-  years: string[]
-  months: string[]
-  selectedYear: string
-  selectedMonth: string
-  onYearChange: (year: string) => void
-  onMonthChange: (month: string) => void
+// ─── Date Selector ────────────────────────────────────────────────────────────
+function DateSelector({ years, months, selectedYear, selectedMonth, onYearChange, onMonthChange }: {
+  years: string[]; months: string[]; selectedYear: string; selectedMonth: string
+  onYearChange: (y: string) => void; onMonthChange: (m: string) => void
 }) {
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
-
   const monthIndex = months.indexOf(selectedMonth)
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartX(e.touches[0].clientX)
-  }
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartX) return
-
-    const touchEndX = e.changedTouches[0].clientX
-    const deltaX = touchStartX - touchEndX
-
-    if (Math.abs(deltaX) > 50) {
-      if (deltaX > 0 && monthIndex < months.length - 1) {
-        onMonthChange(months[monthIndex + 1])
-      } else if (deltaX < 0 && monthIndex > 0) {
-        onMonthChange(months[monthIndex - 1])
-      }
-    }
-    setTouchStartX(null)
-  }
-
   return (
-    <div className="rounded-xl border border-border bg-card p-3 shadow-sm space-y-2">
-      {/* Year chips - compact */}
-      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+    <div className="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
+      {/* Year chips */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
         {years.map((year) => (
-          <button
-            key={year}
-            type="button"
-            onClick={() => onYearChange(year)}
-            className={`flex-shrink-0 rounded-lg px-3 py-1 text-xs font-bold transition-all ${
-              year === selectedYear
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted/60 text-muted-foreground hover:bg-muted active:scale-95'
-            }`}
-          >
+          <button key={year} type="button" onClick={() => onYearChange(year)}
+            className={`flex-shrink-0 rounded-xl px-4 py-2 text-base font-bold transition-all ${year === selectedYear ? 'bg-orange-500 text-white shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-orange-100 dark:hover:bg-slate-700'}`}>
             {year}
           </button>
         ))}
       </div>
 
-      {/* Month navigation with counter */}
+      {/* Month nav */}
       <div
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        className="flex items-center justify-between gap-2"
+        onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+        onTouchEnd={(e) => {
+          if (!touchStartX) return
+          const delta = touchStartX - e.changedTouches[0].clientX
+          if (Math.abs(delta) > 50) {
+            if (delta > 0 && monthIndex < months.length - 1) onMonthChange(months[monthIndex + 1])
+            else if (delta < 0 && monthIndex > 0) onMonthChange(months[monthIndex - 1])
+          }
+          setTouchStartX(null)
+        }}
+        className="flex items-center justify-between gap-3"
       >
-        <button
-          type="button"
-          onClick={() => monthIndex > 0 && onMonthChange(months[monthIndex - 1])}
+        <button type="button" onClick={() => monthIndex > 0 && onMonthChange(months[monthIndex - 1])}
           disabled={monthIndex === 0}
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted/50 transition-all hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
-        >
-          <ChevronLeft className="h-4 w-4" />
+          className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-orange-50 hover:border-orange-300 disabled:opacity-30 transition-colors">
+          <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
         </button>
-
         <div className="flex-1 text-center">
-          <div className="text-lg font-bold text-foreground">
-            {formatMonthLabel(selectedMonth)}
-          </div>
-          <div className="text-[10px] text-muted-foreground">
-            {monthIndex + 1} / {months.length}
-          </div>
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white">{formatMonthLabel(selectedMonth)}</div>
+          <div className="text-sm font-semibold text-slate-400 dark:text-slate-500 mt-0.5">Bulan {monthIndex + 1} dari {months.length}</div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => monthIndex < months.length - 1 && onMonthChange(months[monthIndex + 1])}
+        <button type="button" onClick={() => monthIndex < months.length - 1 && onMonthChange(months[monthIndex + 1])}
           disabled={monthIndex === months.length - 1}
-          className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted/50 transition-all hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
-        >
-          <ChevronRight className="h-4 w-4" />
+          className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-orange-50 hover:border-orange-300 disabled:opacity-30 transition-colors">
+          <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
         </button>
       </div>
     </div>
   )
 }
 
-/* ── Toggle Payment Confirmation Dialog ── */
-function TogglePaymentDialog({
-  open,
-  transaction,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean
-  transaction: Transaction | null
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
+// ─── Confirmation Dialog Base ─────────────────────────────────────────────────
+function ConfirmDialog({ open, icon, iconBg, title, description, confirmLabel, confirmClass, onCancel, onConfirm }: {
+  open: boolean; icon: React.ReactNode; iconBg: string; title: string; description: React.ReactNode
+  confirmLabel: string; confirmClass: string; onCancel: () => void; onConfirm: () => void
 }) {
-  if (!open || !transaction) return null
-
-  const newStatus = !transaction.isPaid
-
+  if (!open) return null
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-      onClick={() => onOpenChange(false)}
-    >
-      <div 
-        className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-            newStatus ? 'bg-success/10' : 'bg-destructive/10'
-          }`}>
-            <AlertCircle className={`h-5 w-5 ${
-              newStatus ? 'text-success' : 'text-destructive'
-            }`} />
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-5" onClick={onCancel}>
+      <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 p-7 shadow-2xl border-2 border-slate-200 dark:border-slate-700" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-6 flex items-start gap-4">
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ${iconBg}`}>{icon}</div>
           <div>
-            <h3 className="text-lg font-bold text-foreground">
-              Ubah Status Pembayaran?
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {transaction.orderName} - {transaction.customerName}
-            </p>
-            <p className="text-sm font-semibold mt-2">
-              Status akan diubah menjadi:{' '}
-              <span className={newStatus ? 'text-success' : 'text-destructive'}>
-                {newStatus ? 'Lunas' : 'Belum Bayar'}
-              </span>
-            </p>
+            <h3 className="text-xl font-extrabold text-slate-900 dark:text-white leading-tight">{title}</h3>
+            <div className="text-base text-slate-600 dark:text-slate-400 mt-1">{description}</div>
           </div>
         </div>
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="h-11 flex-1 rounded-lg border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
+        <div className="flex gap-3">
+          <button type="button" onClick={onCancel}
+            className="h-14 flex-1 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors">
             Batal
           </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`h-11 flex-1 rounded-lg text-sm font-semibold transition-colors ${
-              newStatus
-                ? 'bg-success text-success-foreground hover:bg-success/90'
-                : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-            }`}
-          >
-            Ya, Ubah
+          <button type="button" onClick={onConfirm} className={`h-14 flex-1 rounded-xl text-base font-extrabold text-white transition-colors ${confirmClass}`}>
+            {confirmLabel}
           </button>
         </div>
       </div>
@@ -201,67 +100,79 @@ function TogglePaymentDialog({
   )
 }
 
-/* ── Detail Drawer ── */
-function TransactionDetailDrawer({
-  transaction,
-  open,
-  onOpenChange,
-}: {
-  transaction: Transaction | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+// ─── Order Items List ─────────────────────────────────────────────────────────
+function OrderItemsList({ items }: { items: OrderItem[] }) {
+  return (
+    <div className="divide-y-2 divide-slate-100 dark:divide-slate-700 rounded-xl border-2 border-slate-200 dark:border-slate-700 overflow-hidden">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800">
+          <span className="text-base font-semibold text-slate-700 dark:text-slate-300">
+            {item.name} <span className="text-slate-400">×{item.qty}</span>
+          </span>
+          <span className="text-base font-extrabold text-slate-900 dark:text-white tabular-nums">{formatRupiah(item.price * item.qty)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Detail Drawer ────────────────────────────────────────────────────────────
+function TransactionDetailDrawer({ transaction, open, onOpenChange }: {
+  transaction: Transaction | null; open: boolean; onOpenChange: (v: boolean) => void
 }) {
   if (!open || !transaction) return null
+  const owed = Math.max(0, transaction.price - transaction.paidAmount)
+  const statusLabel = transaction.isPaid ? 'Lunas' : transaction.paidAmount > 0 ? 'Cicilan' : 'Belum Bayar'
+  const statusClass = transaction.isPaid
+    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    : transaction.paidAmount > 0
+    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
-      onClick={() => onOpenChange(false)}
-    >
-      <div 
-        className="w-full max-w-lg rounded-t-2xl bg-card p-6 animate-in slide-in-from-bottom"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start justify-between">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => onOpenChange(false)}>
+      <div className="w-full max-w-lg rounded-t-3xl bg-white dark:bg-slate-900 p-6 animate-in slide-in-from-bottom max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5 flex items-start justify-between">
           <div>
-            <h2 className="text-xl font-bold text-foreground">Detail Transaksi</h2>
-            <p className="text-sm text-muted-foreground">{formatDateFull(transaction.date)}</p>
+            <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Detail Pesanan</h2>
+            <p className="text-base font-semibold text-slate-500 dark:text-slate-400 mt-1">{formatDateFull(transaction.date)}</p>
           </div>
-          <div
-            className={`rounded-lg px-3 py-1 text-sm font-bold ${
-              transaction.isPaid
-                ? 'bg-success/10 text-success'
-                : 'bg-destructive/10 text-destructive'
-            }`}
-          >
-            {transaction.isPaid ? 'Lunas' : 'Belum Bayar'}
-          </div>
+          <span className={`rounded-xl px-4 py-2 text-base font-extrabold ${statusClass}`}>{statusLabel}</span>
         </div>
 
-        <div className="space-y-4 pb-4">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Pemesan</p>
-            <p className="text-base font-semibold text-foreground">{transaction.customerName}</p>
+        <div className="space-y-5 pb-4">
+          <div className="rounded-2xl bg-slate-50 dark:bg-slate-800 px-5 py-4">
+            <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Nama Pemesan</p>
+            <p className="text-xl font-extrabold text-slate-900 dark:text-white">{transaction.customerName}</p>
           </div>
 
           <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Pesanan</p>
-            <p className="text-base font-semibold text-foreground break-words">
-              {transaction.orderName}
-            </p>
+            <p className="text-sm font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Rincian Pesanan</p>
+            <OrderItemsList items={transaction.orderItems} />
           </div>
 
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1">Harga</p>
-            <p className="text-xl font-bold text-primary">{formatRupiah(transaction.price)}</p>
+          <div className="flex items-center justify-between rounded-2xl bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-200 dark:border-orange-800 px-5 py-4">
+            <span className="text-base font-bold text-slate-700 dark:text-slate-300">Total</span>
+            <span className="text-2xl font-extrabold text-orange-600 dark:text-orange-400">{formatRupiah(transaction.price)}</span>
           </div>
+
+          {transaction.paidAmount > 0 && !transaction.isPaid && (
+            <div className="flex items-center justify-between rounded-2xl bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 px-5 py-4">
+              <span className="text-base font-bold text-amber-700 dark:text-amber-400">Sudah Dibayar</span>
+              <span className="text-xl font-extrabold text-amber-700 dark:text-amber-400">{formatRupiah(transaction.paidAmount)}</span>
+            </div>
+          )}
+
+          {!transaction.isPaid && (
+            <div className="flex items-center justify-between rounded-2xl bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 px-5 py-4">
+              <span className="text-base font-bold text-red-700 dark:text-red-400">Sisa Hutang</span>
+              <span className="text-2xl font-extrabold text-red-600 dark:text-red-400">{formatRupiah(owed)}</span>
+            </div>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => onOpenChange(false)}
-          className="h-11 w-full rounded-lg border border-border bg-background text-base font-medium text-foreground transition-colors hover:bg-muted"
-        >
+        <button type="button" onClick={() => onOpenChange(false)}
+          className="h-14 w-full rounded-2xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors">
           Tutup
         </button>
       </div>
@@ -269,217 +180,87 @@ function TransactionDetailDrawer({
   )
 }
 
-/* ── Edit Drawer ── */
-function EditTransactionDrawer({
-  transaction,
-  open,
-  onOpenChange,
-}: {
-  transaction: Transaction | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+// ─── Edit Drawer ──────────────────────────────────────────────────────────────
+function EditTransactionDrawer({ transaction, open, onOpenChange }: {
+  transaction: Transaction | null; open: boolean; onOpenChange: (v: boolean) => void
 }) {
   const [date, setDate] = useState('')
   const [customerName, setCustomerName] = useState('')
-  const [orderName, setOrderName] = useState('')
-  const [price, setPrice] = useState('')
   const [isPaid, setIsPaid] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (transaction && open && date === '' && customerName === '') {
-    setDate(transaction.date)
-    setCustomerName(transaction.customerName)
-    setOrderName(transaction.orderName)
-    setPrice(transaction.price.toString())
-    setIsPaid(transaction.isPaid)
+    setDate(transaction.date); setCustomerName(transaction.customerName); setIsPaid(transaction.isPaid)
   }
+  function resetForm() { setDate(''); setCustomerName(''); setIsPaid(false) }
 
   async function handleSave() {
-    if (!transaction || !customerName.trim() || !orderName.trim() || !price) return
-
+    if (!transaction || !customerName.trim() || !date) return
+    setIsSubmitting(true)
     try {
-      await editTransaction(transaction.id, {
-        date,
-        customerName: customerName.trim(),
-        orderName: orderName.trim(),
-        price: Number(price),
-        isPaid,
+      const ok = await editTransaction(transaction.id, {
+        date, customerName: customerName.trim(), isPaid, paidAmount: isPaid ? transaction.price : 0,
       })
-      toast.success('Transaksi berhasil diubah')
-      onOpenChange(false)
-      resetForm()
-    } catch (error) {
-      toast.error('Gagal mengubah transaksi')
-      console.error(error)
-    }
-  }
-
-  function resetForm() {
-    setDate('')
-    setCustomerName('')
-    setOrderName('')
-    setPrice('')
-    setIsPaid(false)
+      if (ok) { toast.success('Transaksi berhasil diubah'); onOpenChange(false); resetForm() }
+      else toast.error('Gagal mengubah transaksi')
+    } catch { toast.error('Terjadi kesalahan') }
+    finally { setIsSubmitting(false) }
   }
 
   if (!open) return null
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
-      onClick={() => {
-        onOpenChange(false)
-        resetForm()
-      }}
-    >
-      <div 
-        className="w-full max-w-lg rounded-t-2xl bg-card p-6 animate-in slide-in-from-bottom"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-foreground">Edit Transaksi</h2>
-          <p className="text-sm text-muted-foreground">Ubah data transaksi di bawah ini</p>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => { onOpenChange(false); resetForm() }}>
+      <div className="w-full max-w-lg rounded-t-3xl bg-white dark:bg-slate-900 p-6 animate-in slide-in-from-bottom" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-5">
+          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Ubah Transaksi</h2>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Edit tanggal, nama, atau status bayar</p>
         </div>
 
-        <div className="flex flex-col gap-4 pb-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-date" className="text-sm font-medium">
-              Tanggal
-            </label>
-            <div className="relative">
-              <input
-                id="edit-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="h-11 w-full rounded-lg border border-input bg-background pl-4 pr-12 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <CalendarDays className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        {transaction && (
+          <div className="mb-5 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Rincian pesanan</p>
+            <OrderItemsList items={transaction.orderItems} />
+            <div className="flex justify-between mt-3 pt-3 border-t-2 border-slate-200 dark:border-slate-700">
+              <span className="text-base font-bold text-slate-700 dark:text-slate-300">Total</span>
+              <span className="text-lg font-extrabold text-orange-600 dark:text-orange-400">{formatRupiah(transaction.price)}</span>
             </div>
           </div>
+        )}
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-customer" className="text-sm font-medium">
-              Nama Pemesan
+        <div className="flex flex-col gap-5 pb-2">
+          <div>
+            <label className="mb-2 flex items-center gap-2 text-base font-extrabold text-slate-800 dark:text-slate-200">
+              <CalendarDays className="h-5 w-5 text-orange-500" />Tanggal
             </label>
-            <input
-              id="edit-customer"
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-order" className="text-sm font-medium">
-              Pesanan
-            </label>
-            <input
-              id="edit-order"
-              type="text"
-              value={orderName}
-              onChange={(e) => setOrderName(e.target.value)}
-              className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="edit-price" className="text-sm font-medium">
-              Harga (Rp)
-            </label>
-            <input
-              id="edit-price"
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="h-11 w-full rounded-lg border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
-
-          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 p-3">
-            <label htmlFor="edit-paid" className="text-sm font-medium">
-              Sudah Bayar?
-            </label>
-            <input
-              id="edit-paid"
-              type="checkbox"
-              checked={isPaid}
-              onChange={(e) => setIsPaid(e.target.checked)}
-              className="h-5 w-5 rounded border-gray-300"
-            />
-          </div>
-        </div>
-
-        <div className="mt-5 flex gap-2.5">
-          <button
-            type="button"
-            onClick={() => {
-              onOpenChange(false)
-              resetForm()
-            }}
-            className="h-11 flex-1 rounded-lg border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
-            Batal
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            className="h-11 flex-1 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Simpan
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ── Delete Dialog ── */
-function DeleteDialog({
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: () => void
-}) {
-  if (!open) return null
-
-  return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-      onClick={() => onOpenChange(false)}
-    >
-      <div 
-        className="w-full max-w-sm rounded-xl bg-card p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-            <Trash2 className="h-5 w-5 text-destructive" />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-lg font-semibold text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-foreground">Hapus Transaksi?</h3>
-            <p className="text-sm text-muted-foreground">
-              Transaksi yang dihapus tidak dapat dikembalikan
-            </p>
+            <label className="mb-2 block text-base font-extrabold text-slate-800 dark:text-slate-200">Nama Pemesan</label>
+            <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+              className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-lg text-slate-900 dark:text-white focus:border-orange-500 focus:outline-none" />
+          </div>
+          <div className="flex items-center justify-between rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-5 py-4">
+            <div>
+              <p className="text-base font-extrabold text-slate-800 dark:text-slate-200">Sudah Bayar?</p>
+              {!isPaid && transaction && transaction.paidAmount > 0 && (
+                <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">Cicilan {formatRupiah(transaction.paidAmount)} akan direset</p>
+              )}
+            </div>
+            <input type="checkbox" checked={isPaid} onChange={(e) => setIsPaid(e.target.checked)}
+              className="h-6 w-6 rounded-lg cursor-pointer accent-orange-500" />
           </div>
         </div>
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="h-11 flex-1 rounded-lg border border-border bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-          >
+
+        <div className="mt-6 flex gap-3">
+          <button type="button" onClick={() => { onOpenChange(false); resetForm() }} disabled={isSubmitting}
+            className="h-14 flex-1 rounded-2xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-base font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors">
             Batal
           </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="h-11 flex-1 rounded-lg bg-destructive text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90"
-          >
-            Hapus
+          <button type="button" onClick={handleSave} disabled={isSubmitting || !customerName.trim() || !date}
+            className="h-14 flex-1 rounded-2xl bg-orange-500 text-base font-extrabold text-white hover:bg-orange-600 disabled:opacity-40 transition-colors">
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
       </div>
@@ -487,99 +268,73 @@ function DeleteDialog({
   )
 }
 
-/* ── Transaction Row ── */
-function TransactionRow({
-  t,
-  admin,
-  onEdit,
-  onDelete,
-  onShowDetail,
-  onTogglePaid,
-}: {
-  t: Transaction
-  admin: boolean
-  onEdit: () => void
-  onDelete: () => void
-  onShowDetail: () => void
-  onTogglePaid: () => void
+// ─── Transaction Row ──────────────────────────────────────────────────────────
+function TransactionRow({ t, admin, onEdit, onDelete, onShowDetail, onTogglePaid }: {
+  t: Transaction; admin: boolean
+  onEdit: () => void; onDelete: () => void; onShowDetail: () => void; onTogglePaid: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const payStatus = t.isPaid ? 'paid' : t.paidAmount > 0 ? 'partial' : 'unpaid'
 
-  function handleTogglePaidClick(e: React.MouseEvent) {
-    e.stopPropagation()
-    onTogglePaid()
-  }
+  const statusConfig = {
+    paid: { label: 'Lunas', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+    partial: { label: 'Cicilan', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+    unpaid: { label: 'Belum Bayar', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  }[payStatus]
 
   return (
-    <div>
+    <div className="border-b-2 border-slate-100 dark:border-slate-800 last:border-b-0">
+      {/* Main row */}
       <div
-        onClick={() => (admin ? setExpanded(!expanded) : onShowDetail())}
-        className={`grid w-full items-center cursor-pointer transition-colors active:bg-muted/40 px-4 py-2.5 ${
-          admin
-            ? 'grid-cols-[60px_1fr_72px_50px_20px] gap-3'
-            : 'grid-cols-[60px_1fr_72px_50px] gap-3'
-        }`}
+        onClick={() => admin ? setExpanded(!expanded) : onShowDetail()}
+        className="flex items-center gap-3 px-4 py-4 cursor-pointer hover:bg-orange-50/50 dark:hover:bg-slate-800/50 transition-colors active:bg-orange-100/50 dark:active:bg-slate-700/50"
       >
-        {/* Date */}
-        <span className="text-xs font-semibold text-muted-foreground tabular-nums">
-          {formatDateShort(t.date)}
-        </span>
+        {/* Date badge */}
+        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl bg-orange-100 dark:bg-orange-900/30">
+          <span className="text-base font-extrabold text-orange-700 dark:text-orange-400 leading-none tabular-nums">
+            {formatDateShort(t.date).split('/')[0]}
+          </span>
+          <span className="text-xs font-bold text-orange-500 dark:text-orange-500 leading-none mt-0.5">
+            /{formatDateShort(t.date).split('/')[1]}
+          </span>
+        </div>
 
-        {/* Order details */}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-card-foreground">
-            {t.customerName}
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <p className="text-lg font-extrabold text-slate-900 dark:text-white leading-tight truncate">{t.customerName}</p>
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            {t.orderItems.map((i) => `${i.name}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(' · ')}
           </p>
-          <p className="truncate text-xs text-muted-foreground">{t.orderName}</p>
         </div>
 
-        {/* Price */}
-        <span className="text-right text-[13px] font-bold text-card-foreground tabular-nums whitespace-nowrap">
-          {formatRupiah(t.price)}
-        </span>
-
-        {/* Status - now a div instead of button to avoid nesting */}
-        <div className="flex justify-center">
-          <div
-            onClick={handleTogglePaidClick}
-            className={`px-1.5 py-0 text-[10px] font-bold leading-5 rounded cursor-pointer select-none transition-colors ${
-              t.isPaid
-                ? 'bg-success text-success-foreground hover:bg-success/90'
-                : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-            }`}
-          >
-            {t.isPaid ? 'Lunas' : 'Belum'}
-          </div>
+        {/* Price + Status */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">{formatRupiah(t.price)}</span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onTogglePaid() }}
+            className={`rounded-lg px-2.5 py-1 text-sm font-extrabold transition-colors ${statusConfig.cls}`}>
+            {statusConfig.label}
+          </button>
         </div>
 
-        {/* Expand chevron (admin only) */}
-        {admin && (
-          <ChevronDown
-            className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${
-              expanded ? 'rotate-180' : ''
-            }`}
-          />
-        )}
+        {admin && <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform shrink-0 ${expanded ? 'rotate-180' : ''}`} />}
       </div>
 
       {/* Admin actions */}
       {admin && expanded && (
-        <div className="flex items-center justify-end gap-3 border-t border-dashed border-border bg-muted/20 px-4 py-1.5">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10 active:bg-primary/20"
-          >
-            <Pencil className="h-3 w-3" />
-            Edit
+        <div className="flex items-center justify-end gap-2 border-t-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3">
+          <button type="button" onClick={onShowDetail}
+            className="flex items-center gap-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-base font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition-colors">
+            <Receipt className="h-4 w-4" />Detail
           </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 active:bg-destructive/20"
-          >
-            <Trash2 className="h-3 w-3" />
-            Hapus
+          <button type="button" onClick={onEdit}
+            className="flex items-center gap-2 rounded-xl border-2 border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 px-4 py-2.5 text-base font-bold text-orange-700 dark:text-orange-400 hover:bg-orange-100 transition-colors">
+            <Pencil className="h-4 w-4" />Edit
+          </button>
+          <button type="button" onClick={onDelete}
+            className="flex items-center gap-2 rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-2.5 text-base font-bold text-red-600 dark:text-red-400 hover:bg-red-100 transition-colors">
+            <Trash2 className="h-4 w-4" />Hapus
           </button>
         </div>
       )}
@@ -587,7 +342,7 @@ function TransactionRow({
   )
 }
 
-/* ── Main List ── */
+// ─── Main Component ───────────────────────────────────────────────────────────
 export function TransactionList() {
   const transactions = useStore(getTransactions)
   const availableYears = useStore(getAvailableYears)
@@ -602,189 +357,131 @@ export function TransactionList() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteTx, setDeleteTx] = useState<Transaction | null>(null)
   const [detailTx, setDetailTx] = useState<Transaction | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [toggleTx, setToggleTx] = useState<Transaction | null>(null)
   const [toggleOpen, setToggleOpen] = useState(false)
 
   const availableMonths = getAvailableMonthsForYear(selectedYear)
-
-  // Auto-adjust month if not available in selected year
   if (availableMonths.length > 0 && !availableMonths.includes(selectedMonth)) {
     setSelectedMonth(availableMonths[0])
   }
 
   const filtered = useMemo(() => {
-    const filterKey = `${selectedYear}-${selectedMonth}`
-    let result = transactions.filter((t) => t.date.startsWith(filterKey))
-
-    result.sort((a, b) => {
+    const key = `${selectedYear}-${selectedMonth}`
+    return [...transactions.filter((t) => t.date.startsWith(key))].sort((a, b) => {
       const diff = new Date(a.date).getTime() - new Date(b.date).getTime()
       return sortOrder === 'newest' ? -diff : diff
     })
-    return result
   }, [transactions, selectedYear, selectedMonth, sortOrder])
 
-  const totalFiltered = filtered.reduce((s, t) => s + t.price, 0)
+  const totalBilled = filtered.reduce((s, t) => s + t.price, 0)
+  const totalUnpaid = filtered.reduce((s, t) => s + Math.max(0, t.price - t.paidAmount), 0)
   const unpaidCount = filtered.filter((t) => !t.isPaid).length
 
-  function handleEdit(t: Transaction) {
-    setEditingTx(t)
-    setEditOpen(true)
-  }
-
-  function handleShowDetail(t: Transaction) {
-    setDetailTx(t)
-    setDetailOpen(true)
-  }
-
-  function handleTogglePaid(t: Transaction) {
-    setToggleTx(t)
-    setToggleOpen(true)
-  }
-
   async function handleToggleConfirm() {
-    if (toggleTx) {
-      try {
-        await togglePaidStatus(toggleTx.id)
-        const newStatus = !toggleTx.isPaid
-        toast.success(`Status diubah menjadi ${newStatus ? 'Lunas' : 'Belum Bayar'}`)
-        setToggleOpen(false)
-        setToggleTx(null)
-      } catch (error) {
-        toast.error('Gagal mengubah status')
-        console.error(error)
-      }
-    }
+    if (!toggleTx) return
+    const ok = await togglePaidStatus(toggleTx.id)
+    if (ok) toast.success(`Status diubah: ${!toggleTx.isPaid ? 'Lunas' : 'Belum Bayar'}`)
+    else toast.error('Gagal mengubah status')
+    setToggleOpen(false); setToggleTx(null)
   }
 
   async function handleDeleteConfirm() {
-    if (deleteId) {
-      try {
-        await deleteTransaction(deleteId)
-        toast.success('Transaksi berhasil dihapus')
-        setDeleteId(null)
-      } catch (error) {
-        toast.error('Gagal menghapus transaksi')
-        console.error(error)
-      }
-    }
+    if (!deleteId) return
+    const ok = await deleteTransaction(deleteId)
+    if (ok) toast.success('Transaksi berhasil dihapus')
+    else toast.error('Gagal menghapus transaksi')
+    setDeleteId(null); setDeleteTx(null)
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {/* Date selector */}
       {availableYears.length > 0 && availableMonths.length > 0 && (
-        <DateSelector
-          years={availableYears}
-          months={availableMonths}
-          selectedYear={selectedYear}
-          selectedMonth={selectedMonth}
-          onYearChange={setSelectedYear}
-          onMonthChange={setSelectedMonth}
-        />
+        <DateSelector years={availableYears} months={availableMonths}
+          selectedYear={selectedYear} selectedMonth={selectedMonth}
+          onYearChange={setSelectedYear} onMonthChange={setSelectedMonth} />
       )}
 
-      {/* Controls: sort + summary strip */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground">
-            {filtered.length} transaksi
-            {unpaidCount > 0 ? ` · ${unpaidCount} belum bayar` : ''}
-          </span>
-          <span className="text-sm font-bold text-foreground tabular-nums">
-            {formatRupiah(totalFiltered)}
-          </span>
+      {/* Summary strip */}
+      <div className="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{filtered.length} Transaksi</p>
+            <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5 tabular-nums">{formatRupiah(totalBilled)}</p>
+            {totalUnpaid > 0 && (
+              <p className="text-base font-bold text-red-600 dark:text-red-400 mt-1">
+                Belum dibayar: {formatRupiah(totalUnpaid)}
+              </p>
+            )}
+          </div>
+          <button type="button"
+            onClick={() => setSortOrder((p) => p === 'newest' ? 'oldest' : 'newest')}
+            className="flex items-center gap-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-base font-bold text-slate-700 dark:text-slate-200 hover:bg-orange-50 hover:border-orange-300 transition-colors">
+            {sortOrder === 'newest' ? <ArrowDown className="h-5 w-5 text-orange-500" /> : <ArrowUp className="h-5 w-5 text-orange-500" />}
+            {sortOrder === 'newest' ? 'Terbaru' : 'Terlama'}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))
-          }
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <ArrowUpDown className="h-3.5 w-3.5" />
-          {sortOrder === 'newest' ? 'Terbaru' : 'Terlama'}
-        </button>
       </div>
 
-      {/* Table */}
+      {/* Empty state */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-            <CalendarDays className="h-7 w-7 text-muted-foreground" />
+        <div className="flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+          <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/20">
+            <CalendarDays className="h-10 w-10 text-orange-400" />
           </div>
-          <p className="text-base font-medium text-muted-foreground">
-            Tidak ada transaksi
-          </p>
-          <p className="text-xs text-muted-foreground/70">
-            {admin ? 'Tekan + untuk menambah' : 'Belum ada data untuk periode ini'}
+          <p className="text-xl font-extrabold text-slate-700 dark:text-slate-300">Belum ada transaksi</p>
+          <p className="text-base text-slate-400 dark:text-slate-500 mt-1">
+            {admin ? 'Tekan tombol + untuk menambah' : 'Belum ada data untuk bulan ini'}
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          {/* Header */}
-          <div
-            className={`grid items-center border-b border-border bg-muted/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground ${
-              admin
-                ? 'grid-cols-[60px_1fr_72px_50px_20px] gap-3'
-                : 'grid-cols-[60px_1fr_72px_50px] gap-3'
-            }`}
-          >
-            <span>Tanggal</span>
-            <span>Pesanan</span>
-            <span className="text-right">Harga</span>
-            <span className="text-center">Status</span>
-            {admin && <span className="sr-only">Aksi</span>}
-          </div>
-
-          {/* Rows */}
-          <div className="divide-y divide-border">
-            {filtered.map((t) => (
-              <TransactionRow
-                key={t.id}
-                t={t}
-                admin={admin}
-                onEdit={() => handleEdit(t)}
-                onDelete={() => setDeleteId(t.id)}
-                onShowDetail={() => handleShowDetail(t)}
-                onTogglePaid={() => handleTogglePaid(t)}
-              />
-            ))}
-          </div>
+        <div className="overflow-hidden rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+          {filtered.map((t) => (
+            <TransactionRow key={t.id} t={t} admin={admin}
+              onEdit={() => { setEditingTx(t); setEditOpen(true) }}
+              onDelete={() => { setDeleteId(t.id); setDeleteTx(t) }}
+              onShowDetail={() => { setDetailTx(t); setDetailOpen(true) }}
+              onTogglePaid={() => { setToggleTx(t); setToggleOpen(true) }} />
+          ))}
         </div>
       )}
 
-      {/* Detail drawer (for non-admin users) */}
-      <TransactionDetailDrawer
-        transaction={detailTx}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-      />
+      {/* Dialogs */}
+      <TransactionDetailDrawer transaction={detailTx} open={detailOpen} onOpenChange={setDetailOpen} />
+      {admin && <EditTransactionDrawer transaction={editingTx} open={editOpen} onOpenChange={setEditOpen} />}
 
-      {/* Edit drawer (admin only) */}
-      {admin && (
-        <EditTransactionDrawer
-          transaction={editingTx}
-          open={editOpen}
-          onOpenChange={setEditOpen}
-        />
-      )}
-
-      {/* Delete dialog */}
-      <DeleteDialog
+      <ConfirmDialog
         open={!!deleteId}
-        onOpenChange={(v) => !v && setDeleteId(null)}
-        onConfirm={handleDeleteConfirm}
-      />
+        icon={<Trash2 className="h-7 w-7 text-red-600 dark:text-red-400" />}
+        iconBg="bg-red-100 dark:bg-red-900/30"
+        title="Hapus Transaksi?"
+        description={deleteTx ? <><strong>{deleteTx.customerName}</strong> — {formatRupiah(deleteTx.price)}<br />Data yang dihapus tidak bisa dikembalikan.</> : 'Data tidak bisa dikembalikan.'}
+        confirmLabel="Ya, Hapus"
+        confirmClass="bg-red-600 hover:bg-red-700"
+        onCancel={() => { setDeleteId(null); setDeleteTx(null) }}
+        onConfirm={handleDeleteConfirm} />
 
-      {/* Toggle payment confirmation dialog */}
-      <TogglePaymentDialog
+      <ConfirmDialog
         open={toggleOpen}
-        transaction={toggleTx}
-        onOpenChange={setToggleOpen}
-        onConfirm={handleToggleConfirm}
-      />
+        icon={<AlertCircle className={`h-7 w-7 ${!toggleTx?.isPaid ? 'text-green-600' : 'text-red-600'}`} />}
+        iconBg={!toggleTx?.isPaid ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'}
+        title="Ubah Status Bayar?"
+        description={toggleTx && <>
+          <strong>{toggleTx.customerName}</strong><br />
+          Status menjadi: <strong className={!toggleTx.isPaid ? 'text-green-600' : 'text-red-600'}>
+            {!toggleTx.isPaid ? 'Lunas' : 'Belum Bayar'}
+          </strong>
+          {toggleTx.isPaid && toggleTx.paidAmount > 0 && (
+            <><br /><span className="text-amber-600">Cicilan {formatRupiah(toggleTx.paidAmount)} akan direset ke 0</span></>
+          )}
+        </>}
+        confirmLabel={!toggleTx?.isPaid ? 'Ya, Tandai Lunas' : 'Ya, Tandai Belum Bayar'}
+        confirmClass={!toggleTx?.isPaid ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+        onCancel={() => { setToggleOpen(false); setToggleTx(null) }}
+        onConfirm={handleToggleConfirm} />
     </div>
   )
 }
