@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Minus, ChefHat, CalendarDays, UserRound, ShoppingCart } from 'lucide-react'
+import { Plus, Minus, ChefHat, CalendarDays, UserRound, ShoppingCart, PenLine, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import {
   Drawer, DrawerClose, DrawerContent, DrawerFooter,
@@ -63,6 +63,30 @@ function OrderItemRow({ menuItem, qty, onChange }: {
   )
 }
 
+// ─── Manual Item Row ──────────────────────────────────────────────────────────
+function ManualItemRow({ item, onRemove }: {
+  item: OrderItem; onRemove: () => void
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border-2 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
+      <div className="flex-1 min-w-0">
+        <p className="text-base font-extrabold text-slate-900 dark:text-white leading-tight truncate">{item.name}</p>
+        <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+          {formatRupiah(item.price)} × {item.qty} ={' '}
+          <span className="text-blue-600 dark:text-blue-400 font-extrabold">{formatRupiah(item.price * item.qty)}</span>
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 transition-colors"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
 // ─── Main Form ────────────────────────────────────────────────────────────────
 export function TransactionForm() {
   const [formOpen, setFormOpen] = useState(false)
@@ -72,6 +96,13 @@ export function TransactionForm() {
   const [customerName, setCustomerName] = useState('')
   const [isPaid, setIsPaid] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Manual item state
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualItems, setManualItems] = useState<OrderItem[]>([])
+  const [manualName, setManualName] = useState('')
+  const [manualPrice, setManualPrice] = useState('')
+  const [manualQty, setManualQty] = useState(1)
 
   useEffect(() => subscribeDailyMenu(() => setMenuItems(getDailyMenu())), [])
 
@@ -83,31 +114,51 @@ export function TransactionForm() {
     })
   }, [menuItems])
 
-  const orderItems: OrderItem[] = menuItems
+  const menuOrderItems: OrderItem[] = menuItems
     .filter((m) => (quantities[m.id] ?? 0) > 0)
     .map((m) => ({ name: m.name, price: m.price, qty: quantities[m.id] }))
 
-  const totalPrice = orderItems.reduce((s, i) => s + i.price * i.qty, 0)
-  const hasOrder = orderItems.length > 0
+  const allOrderItems: OrderItem[] = [...menuOrderItems, ...manualItems]
+  const totalPrice = allOrderItems.reduce((s, i) => s + i.price * i.qty, 0)
+  const hasOrder = allOrderItems.length > 0
+
+  function handleAddManualItem() {
+    const trimmed = manualName.trim()
+    const price = parseFloat(manualPrice)
+    if (!trimmed) { toast.error('Nama item tidak boleh kosong'); return }
+    if (isNaN(price) || price <= 0) { toast.error('Harga harus lebih dari 0'); return }
+    if (manualQty <= 0) { toast.error('Jumlah harus lebih dari 0'); return }
+
+    setManualItems((prev) => [...prev, { name: trimmed, price, qty: manualQty }])
+    setManualName('')
+    setManualPrice('')
+    setManualQty(1)
+    toast.success(`Item "${trimmed}" ditambahkan`)
+  }
 
   function resetForm() {
     setCustomerName('')
     setIsPaid(false)
     setDate(new Date().toISOString().split('T')[0])
     setQuantities(menuItems.reduce((acc, m) => ({ ...acc, [m.id]: 0 }), {}))
+    setManualItems([])
+    setManualName('')
+    setManualPrice('')
+    setManualQty(1)
+    setManualOpen(false)
   }
 
   async function handleSubmit() {
     if (!date) { toast.error('Pilih tanggal terlebih dahulu'); return }
     if (!customerName.trim()) { toast.error('Nama pemesan harus diisi'); return }
-    if (!hasOrder) { toast.error('Pilih minimal satu menu'); return }
+    if (!hasOrder) { toast.error('Pilih minimal satu menu atau tambah item manual'); return }
 
     setIsSubmitting(true)
     try {
       const result = await addTransaction({
         date,
         customerName: customerName.trim(),
-        orderItems,
+        orderItems: allOrderItems,
         isPaid,
       })
       if (result) {
@@ -183,22 +234,22 @@ export function TransactionForm() {
               />
             </div>
 
-            {/* Pilih Menu */}
+            {/* Pilih Menu Harian */}
             <div>
               <label className="mb-3 flex items-center gap-2 text-base font-extrabold text-slate-800 dark:text-slate-200">
                 <ChefHat className="h-5 w-5 text-orange-500" />
-                Pilih Menu
+                Pilih Menu Harian
               </label>
 
               {menuItems.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-orange-300 dark:border-orange-700 py-10 bg-orange-50 dark:bg-orange-900/10">
-                  <ChefHat className="h-12 w-12 text-orange-300" />
+                <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-orange-300 dark:border-orange-700 py-8 bg-orange-50 dark:bg-orange-900/10">
+                  <ChefHat className="h-10 w-10 text-orange-300" />
                   <div className="text-center px-4">
-                    <p className="text-lg font-extrabold text-orange-600 dark:text-orange-400">
+                    <p className="text-base font-extrabold text-orange-600 dark:text-orange-400">
                       Belum ada menu hari ini
                     </p>
-                    <p className="text-base text-slate-500 dark:text-slate-400 mt-1">
-                      Tutup form ini, lalu buka tab <strong>Menu</strong> untuk menambahkan menu terlebih dahulu.
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      Buka tab <strong>Menu</strong> untuk menambahkan, atau gunakan input manual di bawah.
                     </p>
                   </div>
                 </div>
@@ -216,6 +267,127 @@ export function TransactionForm() {
               )}
             </div>
 
+            {/* ── Input Item Manual ── */}
+            <div className="rounded-2xl border-2 border-blue-200 dark:border-blue-800 overflow-hidden">
+              {/* Toggle header */}
+              <button
+                type="button"
+                onClick={() => setManualOpen((v) => !v)}
+                className="w-full flex items-center justify-between px-5 py-4 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <PenLine className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <span className="text-base font-extrabold text-blue-700 dark:text-blue-300">
+                    + Input Item Manual
+                  </span>
+                  {manualItems.length > 0 && (
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-extrabold text-white">
+                      {manualItems.length}
+                    </span>
+                  )}
+                </div>
+                {manualOpen
+                  ? <ChevronUp className="h-5 w-5 text-blue-500" />
+                  : <ChevronDown className="h-5 w-5 text-blue-500" />
+                }
+              </button>
+
+              {/* Collapsed: preview added items */}
+              {!manualOpen && manualItems.length > 0 && (
+                <div className="px-4 py-3 flex flex-col gap-2 border-t border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900">
+                  {manualItems.map((item, i) => (
+                    <ManualItemRow
+                      key={i}
+                      item={item}
+                      onRemove={() => setManualItems((prev) => prev.filter((_, idx) => idx !== i))}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Expanded */}
+              {manualOpen && (
+                <div className="px-4 py-4 flex flex-col gap-4 border-t border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                    Untuk item di luar menu harian — cocok untuk transaksi tanggal lain atau menu tambahan.
+                  </p>
+
+                  {/* Input fields */}
+                  <div className="flex flex-col gap-3">
+                    <input
+                      type="text"
+                      placeholder="Nama item (contoh: Nasi Goreng)"
+                      value={manualName}
+                      onChange={(e) => setManualName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddManualItem()}
+                      disabled={isSubmitting}
+                      className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input
+                        type="number"
+                        placeholder="Harga (Rp)"
+                        value={manualPrice}
+                        onChange={(e) => setManualPrice(e.target.value)}
+                        disabled={isSubmitting}
+                        inputMode="numeric"
+                        min="0"
+                        className="h-14 w-full rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 text-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                      />
+                      {/* Qty stepper */}
+                      <div className="flex items-center justify-between gap-2 h-14 rounded-xl border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3">
+                        <button
+                          type="button"
+                          onClick={() => setManualQty((q) => Math.max(1, q - 1))}
+                          disabled={manualQty <= 1 || isSubmitting}
+                          className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:border-red-400 hover:text-red-600 disabled:opacity-30 transition-colors"
+                        >
+                          <Minus className="h-4 w-4" strokeWidth={3} />
+                        </button>
+                        <span className="text-xl font-extrabold text-slate-900 dark:text-white tabular-nums w-6 text-center">
+                          {manualQty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setManualQty((q) => q + 1)}
+                          disabled={isSubmitting}
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                        >
+                          <Plus className="h-4 w-4" strokeWidth={3} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddManualItem}
+                      disabled={!manualName.trim() || !manualPrice || parseFloat(manualPrice) <= 0 || isSubmitting}
+                      className="flex h-14 items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-extrabold text-white hover:bg-blue-700 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      <Plus className="h-5 w-5" strokeWidth={3} />
+                      Tambahkan Item
+                    </button>
+                  </div>
+
+                  {/* Added manual items list */}
+                  {manualItems.length > 0 && (
+                    <div className="flex flex-col gap-2 pt-1">
+                      <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                        Item ditambahkan:
+                      </p>
+                      {manualItems.map((item, i) => (
+                        <ManualItemRow
+                          key={i}
+                          item={item}
+                          onRemove={() => setManualItems((prev) => prev.filter((_, idx) => idx !== i))}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Total */}
             {hasOrder && (
               <div className="rounded-2xl border-2 border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 p-4">
@@ -226,8 +398,8 @@ export function TransactionForm() {
                   </span>
                 </div>
                 <div className="space-y-2 border-t border-orange-200 dark:border-orange-800 pt-3">
-                  {orderItems.map((item) => (
-                    <div key={item.name} className="flex justify-between text-base">
+                  {allOrderItems.map((item, i) => (
+                    <div key={`${item.name}-${i}`} className="flex justify-between text-base">
                       <span className="text-slate-600 dark:text-slate-400">
                         {item.name} × {item.qty}
                       </span>
