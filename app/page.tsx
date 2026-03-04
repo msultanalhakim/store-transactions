@@ -34,6 +34,24 @@ export function removeDailyMenuItem(id: string) {
 }
 export function resetDailyMenu() { _dailyMenuItems = []; notifyDailyMenu() }
 
+// ─── Auto-reset menu at 03:00 every day ──────────────────────────────────────
+function msUntil3AM(): number {
+  const now = new Date()
+  const next3AM = new Date(now)
+  next3AM.setHours(3, 0, 0, 0)
+  if (next3AM <= now) next3AM.setDate(next3AM.getDate() + 1)
+  return next3AM.getTime() - now.getTime()
+}
+
+export function scheduleDailyMenuReset() {
+  const timeout = setTimeout(() => {
+    resetDailyMenu()
+    // Schedule again for the next day
+    scheduleDailyMenuReset()
+  }, msUntil3AM())
+  return () => clearTimeout(timeout)
+}
+
 // ─── Logout Dialog ────────────────────────────────────────────────────────────
 function LogoutDialog({ open, onOpenChange, onConfirm }: {
   open: boolean; onOpenChange: (v: boolean) => void; onConfirm: () => void
@@ -324,7 +342,8 @@ function AppShell() {
       finally { if (mounted) setTimeout(() => setIsInitializing(false), 100) }
     }
     initialize()
-    return () => { mounted = false }
+    const cancelReset = scheduleDailyMenuReset()
+    return () => { mounted = false; cancelReset() }
   }, [])
 
   if (isInitializing) {
