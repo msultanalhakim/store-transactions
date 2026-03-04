@@ -19,7 +19,7 @@ export type Database = {
           id: string
           created_at: string
           date: string
-          customer_name: string
+          order_name: string
           order_items: OrderItem[]
           price: number
           is_paid: boolean
@@ -29,7 +29,7 @@ export type Database = {
           id?: string
           created_at?: string
           date: string
-          customer_name: string
+          order_name: string
           order_items: OrderItem[]
           price: number
           is_paid?: boolean
@@ -39,7 +39,7 @@ export type Database = {
           id?: string
           created_at?: string
           date?: string
-          customer_name?: string
+          order_name?: string
           order_items?: OrderItem[]
           price?: number
           is_paid?: boolean
